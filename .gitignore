@@ -1,6 +1,7 @@
 composer.phar
 /vendor/
 /storage/*.pdf
+/storage/
 /src/Core/Database.php
 config/mail.php
 bin/check-emails.php
