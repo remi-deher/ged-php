@@ -1,0 +1,1 @@
+*/5 * * * * /usr/bin/php /var/www/ged/bin/check-emails.php >> /var/www/ged/storage/cron.log 2>&1

@@ -1,0 +1,23 @@
+{
+    "name": "votre-nom/ged-collaborative",
+    "description": "Gestion Électronique de Documents collaborative en PHP.",
+    "require": {
+        "php": ">=8.2",
+        "cboden/ratchet": "^0.4.4",
+        "textalk/websocket": "^1.5",
+        "webklex/php-imap": "^6.2",
+        "dompdf/dompdf": "^3.1",
+        "microsoft/microsoft-graph": "^2.48"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "tbachert/spi": true
+        }
+    }
+}

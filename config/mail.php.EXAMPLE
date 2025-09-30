@@ -1,0 +1,11 @@
+<?php
+// config/mail.php
+
+return [
+    'host'          => 'imap.votreserveur.com', // ex: imap.gmail.com
+    'port'          => 993,
+    'encryption'    => 'ssl', // ssl ou tls
+    'validate_cert' => true,
+    'username'      => 'votre.email@domaine.com',
+    'password'      => 'votre_mot_de_passe_ou_mot_de_passe_application'
+];
