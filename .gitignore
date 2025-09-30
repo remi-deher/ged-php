@@ -3,3 +3,4 @@ composer.phar
 /storage/*.pdf
 /src/Core/Database.php
 config/mail.php
+bin/check-emails.php

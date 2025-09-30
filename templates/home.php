@@ -63,7 +63,8 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const documentList = document.getElementById('document-list');
-            const conn = new WebSocket('ws://localhost:8082');
+	    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const conn = new WebSocket(wsProtocol + '//' + window.location.host + '/ws/');
 
             conn.onopen = (e) => console.log("Connexion WebSocket établie !");
             conn.onclose = (e) => console.log("Connexion WebSocket fermée.");

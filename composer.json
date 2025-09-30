@@ -5,8 +5,9 @@
         "php": ">=8.2",
         "cboden/ratchet": "^0.4.4",
         "textalk/websocket": "^1.5",
-        "webklex/php-imap": "^6.2",
         "dompdf/dompdf": "^3.1",
+        "league/oauth2-client": "^2.6",
+        "thenetworg/oauth2-azure": "^2.2",
         "microsoft/microsoft-graph": "^2.48"
     },
     "autoload": {
