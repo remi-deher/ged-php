@@ -27,34 +27,45 @@ $settingsController = new SettingsController();
 
 // Routage simple basé sur l'URI demandée
 switch ($requestUri) {
-    // Page d'accueil : affiche la liste des documents actifs
+    // --- Pages principales ---
     case '/':
         $documentController->listDocuments();
         break;
 
-    // Affiche le contenu de la corbeille
     case '/trash':
         $documentController->listTrash();
         break;
-        
-    // Affiche la page des réglages
+
+    // --- Routes pour les réglages multi-comptes ---
     case '/settings':
-        $settingsController->showSettingsForm();
+        $settingsController->listAccounts();
         break;
-
-    // --- ACTIONS (traitées uniquement via la méthode POST) ---
-
-    // Action pour sauvegarder les réglages
-    case '/settings/save':
+    
+    case '/settings/account/save':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $settingsController->saveSettings();
+            $settingsController->saveAccount();
         } else {
             header('Location: /settings');
-            exit();
+        }
+        break;
+        
+    case '/settings/account/delete':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $settingsController->deleteAccount();
+        } else {
+            header('Location: /settings');
+        }
+        break;
+        
+    case '/settings/ajax/list-folders':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $settingsController->ajaxListFolders();
+        } else {
+            http_response_code(405); // Method Not Allowed
         }
         break;
 
-    // Action pour envoyer un nouveau fichier
+    // --- Actions pour les documents (traitées via POST) ---
     case '/upload':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $documentController->uploadDocument();
@@ -64,7 +75,6 @@ switch ($requestUri) {
         }
         break;
 
-    // Action pour mettre à jour le statut d'un document
     case '/document/update-status':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $documentController->updateDocumentStatus();
@@ -74,7 +84,6 @@ switch ($requestUri) {
         }
         break;
     
-    // Action pour envoyer un document à la corbeille (soft delete)
     case '/document/delete':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $documentController->moveToTrash();
@@ -84,7 +93,6 @@ switch ($requestUri) {
         }
         break;
 
-    // Action pour restaurer un document depuis la corbeille
     case '/document/restore':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $documentController->restoreDocument();
@@ -94,7 +102,6 @@ switch ($requestUri) {
         }
         break;
 
-    // Action pour supprimer définitivement un document
     case '/document/force-delete':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $documentController->forceDelete();
