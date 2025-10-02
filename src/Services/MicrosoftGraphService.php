@@ -10,6 +10,7 @@ use Exception;
 class MicrosoftGraphService
 {
     private GraphServiceClient $graph;
+    private const DEFAULT_SCOPES = ['https://graph.microsoft.com/.default'];
 
     /**
      * Initialise le client Graph avec les identifiants fournis.
@@ -22,10 +23,14 @@ class MicrosoftGraphService
             throw new Exception("Les informations d'identification pour l'API Graph sont incomplètes.");
         }
 
+        // --- CORRECTION APPLIQUÉE ICI ---
+        // Ajout du 4ème paramètre 'scopes' qui était manquant.
+        // C'est ce qui permet de demander les permissions nécessaires à l'API.
         $tokenRequestContext = new ClientCredentialContext(
             $credentials['tenant_id'],
             $credentials['client_id'],
-            $credentials['client_secret']
+            $credentials['client_secret'],
+            self::DEFAULT_SCOPES
         );
         
         $this->graph = new GraphServiceClient($tokenRequestContext);
@@ -44,16 +49,19 @@ class MicrosoftGraphService
         }
 
         try {
+            // La méthode get()->wait() attend la résolution de la promesse de l'API
             $mailFoldersResponse = $this->graph->users()->byUserId($userEmail)->mailFolders()->get()->wait();
             
             $folders = [];
+            // getValue() retourne la collection de dossiers
             foreach ($mailFoldersResponse->getValue() as $folder) {
                 $folders[] = ['id' => $folder->getId(), 'name' => $folder->getDisplayName()];
             }
             return $folders;
         } catch (Exception $e) {
             // Renvoyer une exception plus générique pour ne pas fuiter de détails techniques
-            throw new Exception("La connexion à l'API Microsoft Graph a échoué. Vérifiez les identifiants. Erreur originale : " . $e->getMessage());
+            // et rendre le message plus clair pour l'utilisateur final.
+            throw new Exception("La connexion à l'API Microsoft Graph a échoué. Vérifiez que les identifiants sont corrects et que les permissions d'API (Mail.Read) sont accordées dans Azure AD. Erreur originale : " . $e->getMessage());
         }
     }
 }

@@ -1,0 +1,210 @@
+/* public/css/settings.css */
+
+/* --- Conteneur principal --- */
+.settings-container {
+    max-width: 800px;
+    margin: auto;
+}
+
+/* --- Cartes des Tenants --- */
+.tenant-card {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    transition: box-shadow 0.3s ease;
+}
+.tenant-card:hover {
+    box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+}
+.tenant-header {
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer; /* Incite au clic pour déplier */
+}
+/* Ajout d'une bordure seulement quand la carte est dépliée */
+.tenant-card.is-open .tenant-header {
+    border-bottom: 1px solid #e9ecef;
+}
+.tenant-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.tenant-name {
+    margin: 0;
+    font-size: 1.4rem;
+    color: #333;
+}
+.tenant-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* --- Conteneur des comptes (partie dépliable) --- */
+.tenant-accounts-container {
+    /* Transition douce pour le dépliage */
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.5s ease-out, padding 0.5s ease-out;
+    padding: 0 1rem; /* Padding vertical à 0 quand c'est fermé */
+}
+.tenant-card.is-open .tenant-accounts-container {
+    max-height: 1000px; /* Valeur suffisamment grande pour contenir les comptes */
+    transition: max-height 0.5s ease-in;
+    padding: 1rem; /* Ajout du padding quand c'est ouvert */
+}
+
+.tenant-settings-actions {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px dashed #ddd;
+    text-align: right;
+}
+
+/* --- Liste des comptes dans une carte Tenant --- */
+.tenant-accounts-list {
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+.account-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    background-color: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+}
+.account-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #555;
+}
+.no-accounts-message {
+    padding: 1rem; 
+    text-align: center; 
+    color: #6c757d;
+}
+
+/* --- Bouton d'ajout de compte --- */
+.add-account-container {
+    padding-top: 1rem;
+    text-align: center;
+}
+.btn-add-account {
+    background: none;
+    border: 1px dashed #007bff;
+    color: #007bff;
+    width: 100%;
+    padding: 10px;
+    font-weight: bold;
+}
+.btn-add-account:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+/* --- Bouton principal d'ajout de Tenant --- */
+.form-toggle-container {
+    text-align: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e9ecef;
+}
+
+/* --- Styles pour les modales --- */
+.modal-content {
+    max-width: 600px;
+    height: auto;
+    max-height: 90vh;
+}
+.modal-body {
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+/* --- Styles pour les formulaires dans les modales --- */
+.input-group {
+    position: relative;
+    margin-bottom: 1.25rem;
+}
+.input-group .icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #aaa;
+}
+.input-group input {
+    padding-left: 40px;
+}
+.form-actions {
+    margin-top: 2rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+}
+.btn-secondary {
+    background-color: #6c757d;
+}
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+/* --- Spinner de chargement --- */
+.spinner {
+    display: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+button.loading .spinner {
+    display: inline-block;
+}
+button.loading .btn-text {
+    display: none;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* --- Messages de feedback --- */
+.feedback-message {
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    text-align: center;
+}
+.feedback-message.success {
+    background-color: #d4edda;
+    color: #155724;
+}
+.feedback-message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* --- Liste des dossiers à cocher --- */
+.folder-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 1rem;
+    background-color: #fff;
+}
+.folder-list li {
+    list-style: none;
+    padding: 4px 0;
+}

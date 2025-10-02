@@ -14,111 +14,112 @@ class SettingsController
         $this->settingsFile = dirname(__DIR__, 2) . '/config/mail_settings.json';
     }
 
-    /**
-     * Affiche la liste des comptes et le formulaire d'ajout.
-     */
-    public function listAccounts(): void
+    public function showSettings(): void
     {
-        $accounts = $this->loadAccounts();
-        require_once dirname(__DIR__, 2) . '/templates/settings_multi.php';
-    }
-    
-    // ... les autres méthodes (saveAccount, deleteAccount, ajaxListFolders) restent identiques ...
-
-    /**
-     * Charge les comptes depuis le fichier de configuration de manière robuste.
-     * Détecte et migre automatiquement l'ancien format.
-     */
-    private function loadAccounts(): array
-    {
-        if (!file_exists($this->settingsFile) || filesize($this->settingsFile) === 0) {
-            return [];
-        }
-        
-        $data = json_decode(file_get_contents($this->settingsFile), true);
-
-        // Si le JSON est invalide ou n'est pas un tableau, on retourne un tableau vide.
-        if (!is_array($data)) {
-            return [];
-        }
-
-        // Détection et migration de l'ancien format
-        if (isset($data['service']) && !isset($data[0])) {
-            $migratedAccount = [
-                'id' => 'migrated_' . time(),
-                'account_name' => 'Compte Principal (migré)',
-                'service' => $data['service'],
-                'graph' => $data['graph'] ?? [],
-                'folders' => $data['folders'] ?? []
-            ];
-            $newData = [$migratedAccount];
-            
-            $this->saveAccounts($newData);
-            return $newData;
-        }
-
-        return $data;
+        $tenants = $this->loadSettings();
+        // Le renommage de la vue est important pour la clarté
+        require_once dirname(__DIR__, 2) . '/templates/settings_tenant.php';
     }
 
-    private function saveAccounts(array $accounts): void
+    public function saveTenant(): void
     {
-        // On s'assure que le répertoire existe
-        if (!is_dir(dirname($this->settingsFile))) {
-            mkdir(dirname($this->settingsFile), 0755, true);
+        $tenants = $this->loadSettings();
+        $tenantId = $_POST['tenant_id'] ?: 'tenant_' . time();
+        $isEditing = !empty($_POST['tenant_id']);
+        $newSecret = $_POST['graph_client_secret'] ?? '';
+        $finalSecret = $newSecret;
+
+        $existingTenant = $isEditing ? $this->findTenantById($tenantId) : null;
+
+        if ($isEditing && empty($newSecret) && $existingTenant) {
+            $finalSecret = $existingTenant['graph']['client_secret'] ?? '';
         }
-        file_put_contents($this->settingsFile, json_encode($accounts, JSON_PRETTY_PRINT));
-    }
 
-    // --- Les autres méthodes complètes pour référence ---
-
-    public function saveAccount(): void
-    {
-        $accounts = $this->loadAccounts();
-        $accountId = $_POST['account_id'] ?: 'acc_' . time();
-
-        $accountData = [
-            'id' => $accountId,
-            'account_name' => $_POST['account_name'] ?? 'Nouveau compte',
-            'service' => $_POST['service'] ?? 'graph',
+        $tenantData = [
+            'tenant_id' => $tenantId,
+            'tenant_name' => $_POST['tenant_name'] ?? 'Nouveau Tenant',
             'graph' => [
                 'tenant_id' => $_POST['graph_tenant_id'] ?? '',
                 'client_id' => $_POST['graph_client_id'] ?? '',
-                'client_secret' => $_POST['graph_client_secret'] ?? '',
-                'user_email' => $_POST['graph_user_email'] ?? '',
+                'client_secret' => $finalSecret,
             ],
-            'folders' => $_POST['folders'] ?? []
+            'accounts' => $existingTenant['accounts'] ?? []
         ];
 
         $found = false;
-        foreach ($accounts as $key => $account) {
-            if ($account['id'] === $accountId) {
-                $accounts[$key] = $accountData;
+        foreach ($tenants as $key => $tenant) {
+            if ($tenant['tenant_id'] === $tenantId) {
+                $tenants[$key] = $tenantData;
                 $found = true;
                 break;
             }
         }
+        if (!$found) $tenants[] = $tenantData;
 
-        if (!$found) {
-            $accounts[] = $accountData;
+        $this->saveSettings($tenants);
+        header('Location: /settings');
+        exit();
+    }
+    
+    public function deleteTenant(): void
+    {
+        $tenants = $this->loadSettings();
+        $tenantId = $_POST['tenant_id'] ?? null;
+        if ($tenantId) {
+            $tenants = array_filter($tenants, fn($t) => $t['tenant_id'] !== $tenantId);
+            $this->saveSettings(array_values($tenants));
+        }
+        header('Location: /settings');
+        exit();
+    }
+    
+    public function saveAccount(): void
+    {
+        $tenants = $this->loadSettings();
+        $tenantId = $_POST['tenant_id'] ?? null;
+        $accountId = $_POST['account_id'] ?: 'acc_' . time();
+        
+        $accountData = [
+            'id' => $accountId,
+            'account_name' => $_POST['account_name'] ?? 'Nouveau Compte',
+            'user_email' => $_POST['user_email'] ?? '',
+            'folders' => $_POST['folders'] ?? []
+        ];
+
+        foreach ($tenants as $key => &$tenant) { // Pass by reference
+            if ($tenant['tenant_id'] === $tenantId) {
+                $accountFound = false;
+                if (!isset($tenant['accounts'])) $tenant['accounts'] = [];
+                foreach ($tenant['accounts'] as $accKey => &$account) {
+                    if ($account['id'] === $accountId) {
+                        $account = $accountData;
+                        $accountFound = true;
+                        break;
+                    }
+                }
+                if (!$accountFound) $tenant['accounts'][] = $accountData;
+                break;
+            }
         }
 
-        $this->saveAccounts($accounts);
+        $this->saveSettings($tenants);
         header('Location: /settings');
         exit();
     }
     
     public function deleteAccount(): void
     {
-        $accounts = $this->loadAccounts();
+        $tenants = $this->loadSettings();
+        $tenantId = $_POST['tenant_id'] ?? null;
         $accountId = $_POST['account_id'] ?? null;
 
-        if ($accountId) {
-            $accounts = array_filter($accounts, function($acc) use ($accountId) {
-                return $acc['id'] !== $accountId;
-            });
-            $this->saveAccounts(array_values($accounts));
+        foreach ($tenants as $key => &$tenant) {
+            if ($tenant['tenant_id'] === $tenantId) {
+                $tenant['accounts'] = array_values(array_filter($tenant['accounts'] ?? [], fn($acc) => $acc['id'] !== $accountId));
+                break;
+            }
         }
-        
+        $this->saveSettings($tenants);
         header('Location: /settings');
         exit();
     }
@@ -126,31 +127,76 @@ class SettingsController
     public function ajaxListFolders(): void
     {
         header('Content-Type: application/json');
-        
         try {
-            $required_keys = ['tenant_id', 'client_id', 'client_secret', 'user_email'];
-            foreach($required_keys as $key) {
-                if (empty($_POST[$key])) {
-                    throw new \Exception("Paramètre manquant : $key");
-                }
-            }
+            $tenantId = $_POST['tenant_id'] ?? null;
+            $userEmail = $_POST['user_email'] ?? null;
+            if (!$tenantId || !$userEmail) throw new \Exception("ID du tenant ou e-mail manquant.");
 
-            $credentials = [
-                'tenant_id' => $_POST['tenant_id'],
-                'client_id' => $_POST['client_id'],
-                'client_secret' => $_POST['client_secret']
-            ];
-            $userEmail = $_POST['user_email'];
+            $tenant = $this->findTenantById($tenantId);
+            if (!$tenant) throw new \Exception("Tenant non trouvé.");
+            
+            $credentials = $tenant['graph'];
+            if (empty($credentials['client_secret'])) throw new \Exception("Le Secret Client n'est pas configuré pour ce tenant.");
 
             $graphService = new MicrosoftGraphService($credentials);
             $folders = $graphService->listMailFolders($userEmail);
             
             echo json_encode(['folders' => $folders]);
-
         } catch (\Exception $e) {
             http_response_code(500);
             error_log("Graph API Error: " . $e->getMessage());
             echo json_encode(['error' => 'La connexion a échoué: ' . $e->getMessage()]);
         }
+    }
+
+    private function loadSettings(): array
+    {
+        if (!file_exists($this->settingsFile) || filesize($this->settingsFile) === 0) return [];
+        $data = json_decode(file_get_contents($this->settingsFile), true);
+        if (!is_array($data)) return [];
+
+        // --- LOGIQUE DE MIGRATION AUTOMATIQUE ---
+        // Détecte l'ancien format (un tableau de comptes) et le convertit.
+        if (isset($data[0]) && isset($data[0]['graph']['user_email'])) {
+            $migratedTenant = [
+                'tenant_id' => 'tenant_' . time(),
+                'tenant_name' => 'Tenant Principal (Migré)',
+                'graph' => [
+                    'tenant_id' => $data[0]['graph']['tenant_id'] ?? '',
+                    'client_id' => $data[0]['graph']['client_id'] ?? '',
+                    'client_secret' => $data[0]['graph']['client_secret'] ?? '',
+                ],
+                'accounts' => []
+            ];
+
+            foreach ($data as $oldAccount) {
+                $migratedTenant['accounts'][] = [
+                    'id' => $oldAccount['id'] ?? 'acc_' . uniqid(),
+                    'account_name' => $oldAccount['account_name'] ?? 'Compte Migré',
+                    'user_email' => $oldAccount['graph']['user_email'] ?? '',
+                    'folders' => $oldAccount['folders'] ?? []
+                ];
+            }
+            
+            $newData = [$migratedTenant];
+            $this->saveSettings($newData);
+            return $newData;
+        }
+
+        return $data;
+    }
+
+    private function saveSettings(array $tenants): void
+    {
+        if (!is_dir(dirname($this->settingsFile))) mkdir(dirname($this->settingsFile), 0755, true);
+        file_put_contents($this->settingsFile, json_encode($tenants, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function findTenantById(string $tenantId): ?array
+    {
+        foreach ($this->loadSettings() as $tenant) {
+            if ($tenant['tenant_id'] === $tenantId) return $tenant;
+        }
+        return null;
     }
 }

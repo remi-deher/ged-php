@@ -36,32 +36,38 @@ switch ($requestUri) {
         $documentController->listTrash();
         break;
 
-    // --- Routes pour les réglages multi-comptes ---
+    // --- Routes pour les réglages multi-tenants ---
     case '/settings':
-        $settingsController->listAccounts();
+        $settingsController->showSettings();
+        break;
+
+    case '/settings/tenant/save':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $settingsController->saveTenant();
+        }
+        break;
+
+    case '/settings/tenant/delete':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $settingsController->deleteTenant();
+        }
         break;
 
     case '/settings/account/save':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settingsController->saveAccount();
-        } else {
-            header('Location: /settings');
         }
         break;
 
     case '/settings/account/delete':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settingsController->deleteAccount();
-        } else {
-            header('Location: /settings');
         }
         break;
 
     case '/settings/ajax/list-folders':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settingsController->ajaxListFolders();
-        } else {
-            http_response_code(405); // Method Not Allowed
         }
         break;
 
@@ -75,7 +81,7 @@ switch ($requestUri) {
         }
         break;
 
-    // --- Nouvelles routes pour la visualisation et le téléchargement ---
+    // --- Routes pour la visualisation et le téléchargement ---
     case '/document/details':
         if (isset($_GET['id'])) {
             $documentController->getDocumentDetails((int)$_GET['id']);
