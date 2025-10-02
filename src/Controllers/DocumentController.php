@@ -4,6 +4,7 @@
 namespace App\Controllers;
 
 use App\Core\Database;
+use App\Services\FileUploaderService; // Import du service
 use PDO;
 use WebSocket\Client;
 
@@ -33,41 +34,45 @@ class DocumentController
     }
 
     /**
-     * Gère l'envoi d'un nouveau document.
+     * Gère l'envoi d'un nouveau document en utilisant le FileUploaderService.
      */
     public function uploadDocument(): void
     {
-        if (!isset($_FILES['document']) || $_FILES['document']['error'] !== UPLOAD_ERR_OK) {
-            die("Erreur lors de l'envoi du fichier.");
+        if (!isset($_FILES['document'])) {
+            header('Location: /?error=nofile');
+            exit();
         }
 
-        $file = $_FILES['document'];
-        $storagePath = dirname(__DIR__, 2) . '/storage/';
-        $allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        $uploader = new FileUploaderService();
 
-        if (!in_array($file['type'], $allowedMimeTypes)) {
-            die("Type de fichier non autorisé.");
-        }
+        try {
+            $uploadedFile = $uploader->handleUpload($_FILES['document']);
 
-        $originalFilename = basename($file['name']);
-        $extension = pathinfo($originalFilename, PATHINFO_EXTENSION);
-        $storedFilename = 'doc_' . uniqid('', true) . '.' . $extension;
-        $destination = $storagePath . $storedFilename;
+            $pdo = Database::getInstance();
+            $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, created_at, updated_at) 
+                    VALUES (?, ?, ?, ?, ?, 'received', NOW(), NOW())";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                $uploadedFile['original_filename'],
+                $uploadedFile['stored_filename'],
+                'storage/',
+                $uploadedFile['mime_type'],
+                $uploadedFile['size']
+            ]);
+            
+            $this->notifyClients('new_document', ['filename' => $uploadedFile['original_filename'], 'timestamp' => date('Y-m-d H:i:s')]);
 
-        if (move_uploaded_file($file['tmp_name'], $destination)) {
-            try {
-                $pdo = Database::getInstance();
-                $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, created_at, updated_at) 
-                        VALUES (?, ?, ?, ?, ?, 'received', NOW(), NOW())";
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute([$originalFilename, $storedFilename, 'storage/', $file['type'], $file['size']]);
-                
-                $this->notifyClients('new_document', ['filename' => $originalFilename, 'timestamp' => date('Y-m-d H:i:s')]);
-
-            } catch (\PDOException $e) {
-                unlink($destination);
-                die("Erreur de base de données : " . $e->getMessage());
+        } catch (\RuntimeException $e) {
+            error_log('Upload Error: ' . $e->getMessage());
+            header('Location: /?error=' . urlencode($e->getMessage()));
+            exit();
+        } catch (\PDOException $e) {
+            if (isset($uploadedFile['full_path']) && file_exists($uploadedFile['full_path'])) {
+                unlink($uploadedFile['full_path']);
             }
+            error_log('Database Error after upload: ' . $e->getMessage());
+            header('Location: /?error=db_error');
+            exit();
         }
         
         header('Location: /');
@@ -97,7 +102,6 @@ class DocumentController
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$newStatus, $docId]);
 
-            // Si le nouveau statut est "À imprimer", on lance l'impression
             if ($newStatus === 'to_print') {
                 $this->printDocument($docId);
             }
@@ -145,7 +149,7 @@ class DocumentController
     }
 
     /**
-     * [MODIFIÉ] Met plusieurs documents dans la corbeille (soft delete).
+     * Met plusieurs documents dans la corbeille (soft delete).
      */
     public function moveToTrash(): void
     {
@@ -155,7 +159,6 @@ class DocumentController
         $docIds = $_POST['doc_ids'];
 
         $pdo = Database::getInstance();
-        // Crée une chaîne de '?' pour la clause IN
         $inQuery = implode(',', array_fill(0, count($docIds), '?'));
         
         $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NOW() WHERE id IN ($inQuery)");
@@ -170,7 +173,7 @@ class DocumentController
     }
 
     /**
-     * [MODIFIÉ] Restaure plusieurs documents depuis la corbeille.
+     * Restaure plusieurs documents depuis la corbeille.
      */
     public function restoreDocument(): void
     {
@@ -185,14 +188,12 @@ class DocumentController
         $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NULL WHERE id IN ($inQuery)");
         $stmt->execute($docIds);
         
-        // On pourrait notifier les clients de la restauration
-        
         header('Location: /trash');
         exit();
     }
 
     /**
-     * [MODIFIÉ] Supprime définitivement plusieurs documents.
+     * Supprime définitivement plusieurs documents.
      */
     public function forceDelete(): void
     {
@@ -204,7 +205,6 @@ class DocumentController
 
         $pdo = Database::getInstance();
         
-        // 1. Récupérer les noms des fichiers pour les supprimer du disque
         $stmt = $pdo->prepare("SELECT stored_filename FROM documents WHERE id IN ($inQuery)");
         $stmt->execute($docIds);
         $documents = $stmt->fetchAll();
@@ -216,7 +216,6 @@ class DocumentController
             }
         }
 
-        // 2. Supprimer les entrées de la base de données
         $deleteStmt = $pdo->prepare("DELETE FROM documents WHERE id IN ($inQuery)");
         $deleteStmt->execute($docIds);
 
@@ -225,7 +224,7 @@ class DocumentController
     }
     
     /**
-     * [NOUVEAU] Affiche la liste des documents dans la corbeille.
+     * Affiche la liste des documents dans la corbeille.
      */
     public function listTrash(): void
     {
@@ -233,12 +232,11 @@ class DocumentController
         $stmt = $pdo->query('SELECT id, original_filename, deleted_at FROM documents WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC');
         $documents = $stmt->fetchAll();
 
-        // Il faudra créer ce nouveau fichier de template
         require_once dirname(__DIR__, 2) . '/templates/trash.php';
     }
 
     /**
-     * [NOUVEAU] Crée un nouveau dossier.
+     * Crée un nouveau dossier.
      */
     public function createFolder(): void
     {
@@ -253,13 +251,13 @@ class DocumentController
     }
 
     /**
-     * [NOUVEAU] Déplace un document vers un dossier.
+     * Déplace un document vers un dossier.
      */
     public function moveDocument(): void
     {
         if (isset($_POST['doc_id'], $_POST['folder_id'])) {
             $docId = (int)$_POST['doc_id'];
-            $folderId = $_POST['folder_id'] === 'root' ? null : (int)$_POST['folder_id']; // 'root' pour la racine
+            $folderId = $_POST['folder_id'] === 'root' ? null : (int)$_POST['folder_id'];
 
             $pdo = Database::getInstance();
             $stmt = $pdo->prepare("UPDATE documents SET folder_id = ? WHERE id = ?");

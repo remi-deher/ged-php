@@ -3,8 +3,7 @@
 
 namespace App\Controllers;
 
-use Microsoft\Graph\GraphServiceClient;
-use Microsoft\Kiota\Authentication\Oauth\ClientCredentialContext;
+use App\Services\MicrosoftGraphService;
 
 class SettingsController
 {
@@ -23,10 +22,55 @@ class SettingsController
         $accounts = $this->loadAccounts();
         require_once dirname(__DIR__, 2) . '/templates/settings_multi.php';
     }
+    
+    // ... les autres méthodes (saveAccount, deleteAccount, ajaxListFolders) restent identiques ...
 
     /**
-     * Ajoute ou met à jour un compte de messagerie.
+     * Charge les comptes depuis le fichier de configuration de manière robuste.
+     * Détecte et migre automatiquement l'ancien format.
      */
+    private function loadAccounts(): array
+    {
+        if (!file_exists($this->settingsFile) || filesize($this->settingsFile) === 0) {
+            return [];
+        }
+        
+        $data = json_decode(file_get_contents($this->settingsFile), true);
+
+        // Si le JSON est invalide ou n'est pas un tableau, on retourne un tableau vide.
+        if (!is_array($data)) {
+            return [];
+        }
+
+        // Détection et migration de l'ancien format
+        if (isset($data['service']) && !isset($data[0])) {
+            $migratedAccount = [
+                'id' => 'migrated_' . time(),
+                'account_name' => 'Compte Principal (migré)',
+                'service' => $data['service'],
+                'graph' => $data['graph'] ?? [],
+                'folders' => $data['folders'] ?? []
+            ];
+            $newData = [$migratedAccount];
+            
+            $this->saveAccounts($newData);
+            return $newData;
+        }
+
+        return $data;
+    }
+
+    private function saveAccounts(array $accounts): void
+    {
+        // On s'assure que le répertoire existe
+        if (!is_dir(dirname($this->settingsFile))) {
+            mkdir(dirname($this->settingsFile), 0755, true);
+        }
+        file_put_contents($this->settingsFile, json_encode($accounts, JSON_PRETTY_PRINT));
+    }
+
+    // --- Les autres méthodes complètes pour référence ---
+
     public function saveAccount(): void
     {
         $accounts = $this->loadAccounts();
@@ -63,9 +107,6 @@ class SettingsController
         exit();
     }
     
-    /**
-     * Supprime un compte de messagerie.
-     */
     public function deleteAccount(): void
     {
         $accounts = $this->loadAccounts();
@@ -75,88 +116,41 @@ class SettingsController
             $accounts = array_filter($accounts, function($acc) use ($accountId) {
                 return $acc['id'] !== $accountId;
             });
-            $this->saveAccounts(array_values($accounts)); // re-index array
+            $this->saveAccounts(array_values($accounts));
         }
         
         header('Location: /settings');
         exit();
     }
     
-    /**
-     * Récupère les dossiers via AJAX pour un compte donné.
-     */
     public function ajaxListFolders(): void
     {
         header('Content-Type: application/json');
         
-        $credentials = [
-            'tenant_id' => $_POST['tenant_id'] ?? '',
-            'client_id' => $_POST['client_id'] ?? '',
-            'client_secret' => $_POST['client_secret'] ?? '',
-            'user_email' => $_POST['user_email'] ?? ''
-        ];
-
-        if (empty(array_filter($credentials))) {
-            echo json_encode(['error' => 'Identifiants manquants.']);
-            return;
-        }
-
         try {
-            $tokenRequestContext = new ClientCredentialContext($credentials['tenant_id'], $credentials['client_id'], $credentials['client_secret']);
-            $graph = new GraphServiceClient($tokenRequestContext);
-            $mailFolders = $graph->users()->byUserId($credentials['user_email'])->mailFolders()->get()->wait();
-            
-            $folders = [];
-            foreach ($mailFolders->getValue() as $folder) {
-                $folders[] = ['id' => $folder->getId(), 'name' => $folder->getDisplayName()];
+            $required_keys = ['tenant_id', 'client_id', 'client_secret', 'user_email'];
+            foreach($required_keys as $key) {
+                if (empty($_POST[$key])) {
+                    throw new \Exception("Paramètre manquant : $key");
+                }
             }
+
+            $credentials = [
+                'tenant_id' => $_POST['tenant_id'],
+                'client_id' => $_POST['client_id'],
+                'client_secret' => $_POST['client_secret']
+            ];
+            $userEmail = $_POST['user_email'];
+
+            $graphService = new MicrosoftGraphService($credentials);
+            $folders = $graphService->listMailFolders($userEmail);
+            
             echo json_encode(['folders' => $folders]);
+
         } catch (\Exception $e) {
             http_response_code(500);
+            error_log("Graph API Error: " . $e->getMessage());
             echo json_encode(['error' => 'La connexion a échoué: ' . $e->getMessage()]);
         }
-    }
-    
-    /**
-     * Charge les comptes depuis le fichier de configuration.
-     * Détecte et migre automatiquement l'ancien format.
-     */
-    private function loadAccounts(): array
-    {
-        if (!file_exists($this->settingsFile)) {
-            return [];
-        }
-        
-        $data = json_decode(file_get_contents($this->settingsFile), true) ?: [];
-
-        // Si le JSON est vide ou n'est pas un tableau, on retourne un tableau vide.
-        if (!is_array($data)) {
-            return [];
-        }
-
-        // Détection de l'ancien format : il a une clé 'service' au premier niveau,
-        // alors que le nouveau format est un tableau d'objets (qui n'a pas de clés numériques).
-        if (isset($data['service']) && !isset($data[0])) {
-            echo "";
-            $migratedAccount = [
-                'id' => 'migrated_' . time(),
-                'account_name' => 'Compte Principal (migré)',
-                'service' => $data['service'],
-                'graph' => $data['graph'] ?? [],
-                'folders' => $data['folders'] ?? []
-            ];
-            $newData = [$migratedAccount];
-            
-            // On sauvegarde le nouveau format et on le retourne
-            $this->saveAccounts($newData);
-            return $newData;
-        }
-
-        return $data;
-    }
-
-    private function saveAccounts(array $accounts): void
-    {
-        file_put_contents($this->settingsFile, json_encode($accounts, JSON_PRETTY_PRINT));
     }
 }

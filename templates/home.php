@@ -4,22 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GED Collaborative</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: auto; padding: 2rem; background-color: #f8f9fa; color: #333; }
-        .container { background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        h1, h2, h3 { color: #0056b3; }
-        .header-actions { display: flex; justify-content: space-between; align-items: center; }
-        a.trash-link { color: #dc3545; text-decoration: none; }
-        a.trash-link:hover { text-decoration: underline; }
-        button, .button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; text-decoration: none; display: inline-block; }
-        button.delete-btn { background-color: #dc3545; font-size: 14px; padding: 8px 12px; margin-top: 1rem; }
-        ul { list-style: none; padding: 0; }
-        li { background: #f4f4f4; padding: 12px; border-radius: 4px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-        li span { flex-grow: 1; margin-left: 10px; }
-        .new-item { animation: fadeIn 0.5s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        hr { margin: 2rem 0; }
-    </style>
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
     <div class="container">
@@ -93,8 +78,6 @@
         </form>
     </div>
 
-    <script>
-        // Le script WebSocket reste le même
-    </script>
+    <script src="/js/home.js" defer></script>
 </body>
 </html>

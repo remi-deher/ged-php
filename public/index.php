@@ -40,7 +40,7 @@ switch ($requestUri) {
     case '/settings':
         $settingsController->listAccounts();
         break;
-    
+
     case '/settings/account/save':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settingsController->saveAccount();
@@ -48,7 +48,7 @@ switch ($requestUri) {
             header('Location: /settings');
         }
         break;
-        
+
     case '/settings/account/delete':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settingsController->deleteAccount();
@@ -56,7 +56,7 @@ switch ($requestUri) {
             header('Location: /settings');
         }
         break;
-        
+
     case '/settings/ajax/list-folders':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settingsController->ajaxListFolders();
@@ -83,7 +83,7 @@ switch ($requestUri) {
             exit();
         }
         break;
-    
+
     case '/document/delete':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $documentController->moveToTrash();

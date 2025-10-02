@@ -1,7 +1,14 @@
 <!DOCTYPE html>
 <html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Corbeille - GED</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
 <body>
     <div class="container">
+        <?php require_once __DIR__ . '/parts/navbar.php'; ?>
+        <h1>🗑️ Corbeille</h1>
         <form id="trash-form" method="POST">
             <ul id="trash-list">
                 <?php if (isset($documents) && !empty($documents)): ?>
@@ -16,8 +23,8 @@
                 <?php endif; ?>
             </ul>
 
-            <button type="submit" formmethod="POST" formaction="/document/restore" class="restore-btn">Restaurer la sélection</button>
-            <button type="submit" formmethod="POST" formaction="/document/force-delete" class="force-delete-btn" onsubmit="return confirm('ATTENTION : Cette action est irréversible. Voulez-vous vraiment supprimer définitivement ces documents ?');">Suppression définitive</button>
+            <button type="submit" formmethod="POST" formaction="/document/restore">Restaurer la sélection</button>
+            <button type="submit" formmethod="POST" formaction="/document/force-delete" class="btn-delete" onclick="return confirm('ATTENTION : Cette action est irréversible. Voulez-vous vraiment supprimer définitivement ces documents ?');">Suppression définitive</button>
         </form>
 
     </div>
