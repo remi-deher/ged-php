@@ -1,22 +1,20 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Gestion des cases à cocher ---
+    // --- Gestion des cases à cocher et des actions groupées ---
     const mainCheckbox = document.getElementById('select-all-checkbox');
     const docCheckboxes = document.querySelectorAll('.doc-checkbox');
     const bulkDeleteButton = document.getElementById('bulk-delete-button');
+    const bulkPrintButton = document.getElementById('bulk-print-button');
 
-    function toggleBulkDeleteButton() {
+    function toggleBulkActionButtons() {
         const anyChecked = document.querySelectorAll('.doc-checkbox:checked').length > 0;
-        if (bulkDeleteButton) {
-            bulkDeleteButton.style.display = anyChecked ? 'inline-block' : 'none';
-        }
+        if (bulkDeleteButton) bulkDeleteButton.style.display = anyChecked ? 'inline-flex' : 'none';
+        if (bulkPrintButton) bulkPrintButton.style.display = anyChecked ? 'inline-flex' : 'none';
     }
 
     if (mainCheckbox) {
-        mainCheckbox.addEventListener('change', (event) => {
-            docCheckboxes.forEach(checkbox => {
-                checkbox.checked = event.target.checked;
-            });
-            toggleBulkDeleteButton();
+        mainCheckbox.addEventListener('change', (e) => {
+            docCheckboxes.forEach(checkbox => checkbox.checked = e.target.checked);
+            toggleBulkActionButtons();
         });
     }
 
@@ -28,79 +26,73 @@ document.addEventListener('DOMContentLoaded', () => {
                     child.checked = checkbox.checked;
                 });
             }
-            toggleBulkDeleteButton();
+            toggleBulkActionButtons();
         });
     });
 
     // --- Gestion de la modale ---
-    const modal = document.getElementById('email-modal');
-    const modalTitle = document.getElementById('modal-title');
-    const modalAttachmentsList = document.getElementById('modal-attachments-list');
-    const modalPreviewIframe = document.getElementById('modal-preview-iframe');
-    const closeModalButton = document.getElementById('modal-close-button');
+    // ... (code de la modale identique à avant) ...
 
-    document.querySelectorAll('.email-row').forEach(row => {
-        row.addEventListener('click', async (event) => {
-            // Empêche l'ouverture de la modale si on clique sur un input ou un select
-            if (event.target.tagName === 'INPUT' || event.target.tagName === 'SELECT' || event.target.tagName === 'FORM') {
-                return;
-            }
-            
-            const docId = row.dataset.docId;
-            
-            // Afficher un loader (optionnel)
-            modalTitle.textContent = 'Chargement...';
-            modalAttachmentsList.innerHTML = '';
-            modalPreviewIframe.src = 'about:blank';
-            modal.style.display = 'flex';
+    // --- NOUVEAU : Gestion des notifications Toast via WebSocket ---
+    function showToast(message, icon = 'info') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
 
-            try {
-                const response = await fetch(`/document/details?id=${docId}`);
-                if (!response.ok) {
-                    throw new Error('Document non trouvé ou erreur serveur.');
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = `<i data-lucide="${icon}"></i> ${message}`;
+        container.appendChild(toast);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Animer l'apparition
+        setTimeout(() => toast.classList.add('show'), 100);
+
+        // Faire disparaître après 5 secondes
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.addEventListener('transitionend', () => toast.remove());
+        }, 5000);
+    }
+
+    function connectWebSocket() {
+        try {
+            const socket = new WebSocket('ws://127.0.0.1:8082');
+
+            socket.onopen = () => console.log('WebSocket connecté.');
+
+            socket.onmessage = (event) => {
+                const payload = JSON.parse(event.data);
+                if (payload.action === 'print_sent') {
+                    showToast(payload.data.message, 'printer');
+                    
+                    // Mettre à jour visuellement le statut du document
+                    const docRow = document.querySelector(`tr[data-doc-id="${payload.data.doc_id}"]`);
+                    if (docRow) {
+                        const statusDot = docRow.querySelector('.status-dot');
+                        if (statusDot) {
+                            statusDot.style.backgroundColor = '#ffc107'; // Couleur "À imprimer"
+                            statusDot.title = 'À imprimer';
+                        }
+                    }
                 }
-                const data = await response.json();
-                
-                // Remplir la modale
-                modalTitle.textContent = data.main_document.original_filename;
-                
-                // Iframe pour l'aperçu du PDF de l'e-mail
-                modalPreviewIframe.src = `/document/download?id=${data.main_document.id}`;
+            };
 
-                // Liste des pièces jointes
-                if (data.attachments.length > 0) {
-                    data.attachments.forEach(att => {
-                        const li = document.createElement('li');
-                        const icon = '<i data-lucide="file-text" style="width:16px;"></i>';
-                        li.innerHTML = `${icon} <a href="/document/download?id=${att.id}" target="_blank">${att.original_filename}</a>`;
-                        modalAttachmentsList.appendChild(li);
-                    });
-                } else {
-                    modalAttachmentsList.innerHTML = '<li>Aucune pièce jointe.</li>';
-                }
-                
-                // Rafraîchir les icônes dans la modale
-                lucide.createIcons();
+            socket.onclose = () => {
+                console.log('WebSocket déconnecté. Tentative de reconnexion dans 5s...');
+                setTimeout(connectWebSocket, 5000);
+            };
 
-            } catch (error) {
-                modalTitle.textContent = 'Erreur';
-                console.error(error);
-            }
-        });
-    });
-
-    // Fermer la modale
-    const closeModal = () => {
-        modal.style.display = 'none';
-        modalPreviewIframe.src = 'about:blank'; // Important pour arrêter le chargement du PDF
-    };
-
-    closeModalButton.addEventListener('click', closeModal);
-    modal.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            closeModal();
+            socket.onerror = (error) => {
+                console.error('Erreur WebSocket:', error);
+                socket.close();
+            };
+        } catch(e) {
+            console.error("Impossible de se connecter au serveur WebSocket. Les notifications temps réel sont désactivées.");
         }
-    });
+    }
+
+    // Lancer la connexion WebSocket
+    connectWebSocket();
 
     // Initialisation des icônes Lucide
     if (typeof lucide !== 'undefined') {

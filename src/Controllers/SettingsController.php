@@ -9,19 +9,37 @@ use App\Services\MicrosoftGraphService;
 class SettingsController
 {
     private $settingsFile;
+    private $printSettingsFile;
 
     public function __construct()
     {
         $this->settingsFile = dirname(__DIR__, 2) . '/config/mail_settings.json';
+        $this->printSettingsFile = dirname(__DIR__, 2) . '/config/print_settings.json';
     }
 
     public function showSettings(): void
     {
         $tenants = $this->loadSettings();
+        $printSettings = $this->loadPrintSettings();
         $pdo = Database::getInstance();
         $stmt = $pdo->query('SELECT id, name FROM folders ORDER BY name ASC');
         $appFolders = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         require_once dirname(__DIR__, 2) . '/templates/settings_tenant.php';
+    }
+
+    public function savePrintSettings(): void
+    {
+        $settings = [
+            'cups_host' => $_POST['cups_host'] ?? '127.0.0.1',
+            'cups_port' => $_POST['cups_port'] ?? 631,
+            'printer_uri' => $_POST['printer_uri'] ?? 'ipp://localhost/printers/GedPrinter',
+        ];
+        if (!is_dir(dirname($this->printSettingsFile))) {
+            mkdir(dirname($this->printSettingsFile), 0755, true);
+        }
+        file_put_contents($this->printSettingsFile, json_encode($settings, JSON_PRETTY_PRINT));
+        header('Location: /settings');
+        exit();
     }
 
     public function saveTenant(): void
@@ -38,7 +56,7 @@ class SettingsController
         $tenantData = [
             'tenant_id' => $tenantId,
             'tenant_name' => $_POST['tenant_name'] ?? 'Nouveau Tenant',
-            'graph' => [ 'tenant_id' => $_POST['graph_tenant_id'] ?? '', 'client_id' => $_POST['graph_client_id'] ?? '', 'client_secret' => $finalSecret, ],
+            'graph' => ['tenant_id' => $_POST['graph_tenant_id'] ?? '', 'client_id' => $_POST['graph_client_id'] ?? '', 'client_secret' => $finalSecret],
             'accounts' => $existingTenant['accounts'] ?? []
         ];
         $found = false;
@@ -54,7 +72,7 @@ class SettingsController
         header('Location: /settings');
         exit();
     }
-    
+
     public function deleteTenant(): void
     {
         $tenants = $this->loadSettings();
@@ -66,7 +84,7 @@ class SettingsController
         header('Location: /settings');
         exit();
     }
-    
+
     public function saveAccount(): void
     {
         $tenants = $this->loadSettings();
@@ -112,7 +130,7 @@ class SettingsController
         header('Location: /settings');
         exit();
     }
-    
+
     public function deleteAccount(): void
     {
         $tenants = $this->loadSettings();
@@ -128,7 +146,7 @@ class SettingsController
         header('Location: /settings');
         exit();
     }
-    
+
     public function ajaxListFolders(): void
     {
         header('Content-Type: application/json');
@@ -183,7 +201,7 @@ class SettingsController
             ];
             foreach ($data as $oldAccount) {
                 $folders = is_array($oldAccount['folders']) ? array_map(fn($id) => ['id' => $id, 'name' => 'Unknown', 'destination_folder_id' => 'root'], $oldAccount['folders']) : [];
-                $migratedTenant['accounts'][] = ['id' => $oldAccount['id'] ?? 'acc_' . uniqid(), 'account_name' => $oldAccount['account_name'] ?? 'Compte Migré', 'user_email' => $oldAccount['graph']['user_email'] ?? '', 'folders' => $folders];
+                $migratedTenant['accounts'][] = ['id' => $oldAccount['id'] ?? 'acc_' . uniqid(), 'account_name' => $oldAccount['account_name'] ?? 'Compte Migré', 'user_email' => $oldAccount['graph']['user_email'] ?? '', 'folders' => $folders, 'automation_rules' => []];
             }
             $newData = [$migratedTenant];
             $this->saveSettings($newData);
@@ -204,5 +222,17 @@ class SettingsController
             if ($tenant['tenant_id'] === $tenantId) return $tenant;
         }
         return null;
+    }
+
+    private function loadPrintSettings(): array
+    {
+        if (!file_exists($this->printSettingsFile)) {
+            return [
+                'cups_host' => '127.0.0.1',
+                'cups_port' => 631,
+                'printer_uri' => 'ipp://localhost/printers/GedPrinter',
+            ];
+        }
+        return json_decode(file_get_contents($this->printSettingsFile), true);
     }
 }
