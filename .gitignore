@@ -5,3 +5,4 @@ composer.phar
 /src/Core/Database.php
 config/mail.php
 bin/check-emails.php
+config/mail_settings.json

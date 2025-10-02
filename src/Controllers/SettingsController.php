@@ -10,10 +10,12 @@ use Microsoft\Kiota\Authentication\Oauth\ClientCredentialContext;
 class SettingsController
 {
     private $settingsFile;
+    private $configDir;
 
     public function __construct()
     {
-        $this->settingsFile = dirname(__DIR__, 2) . '/config/mail_settings.json';
+        $this->configDir = dirname(__DIR__, 2) . '/config/';
+        $this->settingsFile = $this->configDir . 'mail_settings.json';
     }
 
     /**
@@ -23,7 +25,7 @@ class SettingsController
     {
         $settings = $this->loadSettings();
         $folders = [];
-        $errorMessage = null; // Variable pour stocker le message d'erreur
+        $errorMessage = null;
         
         $isConfigured = $this->isConfigured($settings);
 
@@ -31,9 +33,8 @@ class SettingsController
             try {
                 $folders = $this->listFolders();
             } catch (\Exception $e) {
-                // CORRECTION : On capture l'erreur et on la prépare pour l'affichage
                 $errorMessage = "Erreur de l'API Microsoft Graph : " . $e->getMessage();
-                error_log($errorMessage); // Garde une trace dans les logs serveur
+                error_log($errorMessage);
             }
         }
 
@@ -45,7 +46,11 @@ class SettingsController
      */
     public function saveSettings(): void
     {
-        // ... (le reste de la méthode est inchangé)
+        // CORRECTION : S'assurer que le dossier de configuration existe
+        if (!is_dir($this->configDir)) {
+            mkdir($this->configDir, 0755, true);
+        }
+
         $settings = [
             'service' => $_POST['service'] ?? 'graph',
             'graph' => [
@@ -63,7 +68,9 @@ class SettingsController
             ],
             'folders' => $_POST['folders'] ?? []
         ];
+
         file_put_contents($this->settingsFile, json_encode($settings, JSON_PRETTY_PRINT));
+
         header('Location: /settings');
         exit();
     }
@@ -73,7 +80,9 @@ class SettingsController
      */
     private function loadSettings(): array
     {
-        if (!file_exists($this->settingsFile)) { return []; }
+        if (!file_exists($this->settingsFile)) {
+            return [];
+        }
         $json = file_get_contents($this->settingsFile);
         return json_decode($json, true) ?: [];
     }
@@ -91,7 +100,6 @@ class SettingsController
 
     /**
      * Liste les dossiers de la boîte mail.
-     * CORRECTION : Ne capture plus l'exception, la laisse remonter.
      */
     public function listFolders(): array
     {
