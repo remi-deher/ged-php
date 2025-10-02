@@ -20,27 +20,141 @@ class SettingsController
     public function showSettings(): void
     {
         $tenants = $this->loadSettings();
-        $printSettings = $this->loadPrintSettings();
+        $printers = $this->loadPrintSettings(); // Nom de variable mis à jour
         $pdo = Database::getInstance();
-        $stmt = $pdo->query('SELECT id, name FROM folders ORDER BY name ASC');
+        $stmt = $pdo->query('SELECT id, name, default_printer_id FROM folders ORDER BY name ASC');
         $appFolders = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         require_once dirname(__DIR__, 2) . '/templates/settings_tenant.php';
     }
 
-    public function savePrintSettings(): void
+    public function savePrinter(): void
     {
-        $settings = [
-            'cups_host' => $_POST['cups_host'] ?? '127.0.0.1',
-            'cups_port' => $_POST['cups_port'] ?? 631,
-            'printer_uri' => $_POST['printer_uri'] ?? 'ipp://localhost/printers/GedPrinter',
+        $printers = $this->loadPrintSettings();
+        $printerId = $_POST['printer_id'] ?: 'printer_' . time();
+        $isEditing = !empty($_POST['printer_id']);
+        
+        $printerData = [
+            'id' => $printerId,
+            'name' => $_POST['printer_name'] ?? 'Nouvelle Imprimante',
+            'uri' => $_POST['printer_uri'] ?? 'ipp://localhost/printers/MyPrinter',
         ];
-        if (!is_dir(dirname($this->printSettingsFile))) {
-            mkdir(dirname($this->printSettingsFile), 0755, true);
+
+        // Tente d'ajouter l'imprimante à CUPS via la ligne de commande
+        // Attention : l'utilisateur web (www-data) doit avoir les droits sudo pour lpadmin
+        $command = sprintf(
+            'sudo lpadmin -p %s -E -v %s -m everywhere',
+            escapeshellarg($printerData['name']),
+            escapeshellarg($printerData['uri'])
+        );
+        
+        // CORRECTION: Utilisation de exec() au lieu de shell_exec()
+        @exec($command . ' 2>&1', $output, $return_var);
+
+        if ($return_var !== 0) {
+            // Même si la commande échoue (droits, etc.), on sauvegarde pour permettre une config manuelle
+            error_log("CUPS lpadmin command failed for printer {$printerData['name']}: " . implode("\n", $output));
         }
-        file_put_contents($this->printSettingsFile, json_encode($settings, JSON_PRETTY_PRINT));
+
+        $found = false;
+        foreach ($printers as $key => $printer) {
+            if ($printer['id'] === $printerId) {
+                $printers[$key] = $printerData;
+                $found = true;
+                break;
+            }
+        }
+        if (!$found) $printers[] = $printerData;
+        
+        $this->savePrintSettings($printers);
         header('Location: /settings');
         exit();
     }
+
+    public function deletePrinter(): void
+    {
+        $printers = $this->loadPrintSettings();
+        $printerId = $_POST['printer_id'] ?? null;
+        $printerToDelete = null;
+
+        if ($printerId) {
+            foreach ($printers as $printer) {
+                if ($printer['id'] === $printerId) {
+                    $printerToDelete = $printer;
+                    break;
+                }
+            }
+            
+            if ($printerToDelete) {
+                // Tente de supprimer l'imprimante de CUPS
+                $command = sprintf('sudo lpadmin -x %s', escapeshellarg($printerToDelete['name']));
+                // CORRECTION: Utilisation de exec() au lieu de shell_exec()
+                @exec($command . ' 2>&1', $output, $return_var);
+                 if ($return_var !== 0) {
+                    error_log("CUPS lpadmin delete command failed for printer {$printerToDelete['name']}: " . implode("\n", $output));
+                }
+            }
+            
+            $printers = array_filter($printers, fn($p) => $p['id'] !== $printerId);
+            $this->savePrintSettings(array_values($printers));
+        }
+        header('Location: /settings');
+        exit();
+    }
+    
+    public function testPrinter(): void
+    {
+        header('Content-Type: application/json');
+        $printerId = $_POST['printer_id'] ?? null;
+
+        if (!$printerId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ID de l\'imprimante manquant.']);
+            exit();
+        }
+
+        try {
+            $printers = $this->loadPrintSettings();
+            $printerConfig = null;
+            foreach ($printers as $p) {
+                if ($p['id'] === $printerId) {
+                    $printerConfig = $p;
+                    break;
+                }
+            }
+
+            if (!$printerConfig) throw new \Exception("Imprimante non trouvée.");
+
+            $testContent = "Ceci est une page de test pour l'imprimante '{$printerConfig['name']}' depuis la GED.\n\nDate: " . date('Y-m-d H:i:s');
+            $filePath = sys_get_temp_dir() . '/ged_test_print_' . uniqid() . '.txt';
+            file_put_contents($filePath, $testContent);
+
+            $builder = new \Smalot\Cups\Builder\Builder();
+            $printerManager = $builder->getPrinterManager();
+            $cupsPrinter = $printerManager->findByUri($printerConfig['uri']);
+
+            if (!$cupsPrinter) throw new \Exception("Imprimante CUPS non trouvée à l'URI : " . $printerConfig['uri']);
+            
+            $job = new \Smalot\Cups\Model\Job();
+            $job->setName('Test_Page_GED');
+            $job->setFilePath($filePath);
+            
+            $jobManager = new \Smalot\Cups\Manager\JobManager(new \Smalot\Cups\Transport\ResponseParser(), $builder->getTransport());
+            $result = $jobManager->send($cupsPrinter, $job);
+            
+            unlink($filePath);
+
+            if (!$result) throw new \Exception("L'envoi du travail de test à CUPS a échoué.");
+
+            echo json_encode(['success' => true, 'message' => "Page de test envoyée à '{$printerConfig['name']}'. Job ID: " . $job->getId()]);
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            error_log("Erreur de test d'impression : " . $e->getMessage());
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        exit();
+    }
+
 
     public function saveTenant(): void
     {
@@ -90,6 +204,16 @@ class SettingsController
         $tenants = $this->loadSettings();
         $tenantId = $_POST['tenant_id'] ?? null;
         $accountId = $_POST['account_id'] ?: 'acc_' . time();
+        
+        // Mise à jour de la liaison imprimante/dossier
+        if (isset($_POST['folder_printers']) && is_array($_POST['folder_printers'])) {
+            $pdo = Database::getInstance();
+            foreach ($_POST['folder_printers'] as $folderId => $printerId) {
+                $stmt = $pdo->prepare("UPDATE folders SET default_printer_id = ? WHERE id = ?");
+                $stmt->execute([$printerId ?: null, $folderId]);
+            }
+        }
+
         $foldersData = [];
         if (isset($_POST['folders']) && is_array($_POST['folders'])) {
             foreach ($_POST['folders'] as $folderMapping) {
@@ -108,6 +232,7 @@ class SettingsController
             'id' => $accountId,
             'account_name' => $_POST['account_name'] ?? 'Nouveau Compte',
             'user_email' => $_POST['user_email'] ?? '',
+            'default_printer_id' => $_POST['default_printer_id'] ?? null, // Ajout de l'imprimante par défaut pour le compte
             'folders' => $foldersData,
             'automation_rules' => $rulesData
         ];
@@ -226,13 +351,28 @@ class SettingsController
 
     private function loadPrintSettings(): array
     {
-        if (!file_exists($this->printSettingsFile)) {
+        if (!file_exists($this->printSettingsFile) || filesize($this->printSettingsFile) === 0) {
+            return [];
+        }
+        $settings = json_decode(file_get_contents($this->printSettingsFile), true);
+        // Gérer l'ancien format
+        if (isset($settings['printer_uri'])) {
             return [
-                'cups_host' => '127.0.0.1',
-                'cups_port' => 631,
-                'printer_uri' => 'ipp://localhost/printers/GedPrinter',
+                [
+                    'id' => 'printer_default',
+                    'name' => 'Imprimante par défaut (Migrée)',
+                    'uri' => $settings['printer_uri']
+                ]
             ];
         }
-        return json_decode(file_get_contents($this->printSettingsFile), true);
+        return is_array($settings) ? $settings : [];
+    }
+
+    private function savePrintSettings(array $printers): void
+    {
+        if (!is_dir(dirname($this->printSettingsFile))) {
+            mkdir(dirname($this->printSettingsFile), 0755, true);
+        }
+        file_put_contents($this->printSettingsFile, json_encode($printers, JSON_PRETTY_PRINT));
     }
 }

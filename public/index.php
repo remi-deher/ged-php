@@ -20,9 +20,19 @@ switch ($requestUri) {
     
     // Réglages
     case '/settings': $settingsController->showSettings(); break;
-    case '/settings/print/save':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->savePrintSettings();
+    
+    // Nouvelles routes pour les imprimantes
+    case '/settings/printer/save':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->savePrinter();
         break;
+    case '/settings/printer/delete':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->deletePrinter();
+        break;
+    case '/settings/printer/test':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->testPrinter();
+        break;
+
+    // Routes existantes
     case '/settings/tenant/save':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->saveTenant();
         break;

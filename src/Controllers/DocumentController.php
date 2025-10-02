@@ -20,7 +20,7 @@ class DocumentController
         $currentFolderId = isset($_GET['folder_id']) ? (int)$_GET['folder_id'] : null;
         $foldersStmt = $pdo->query('SELECT id, name FROM folders ORDER BY name ASC');
         $folders = $foldersStmt->fetchAll();
-        $sql = 'SELECT id, original_filename, status, created_at, parent_document_id FROM documents WHERE deleted_at IS NULL AND folder_id ' . ($currentFolderId ? '= ?' : 'IS NULL') . ' ORDER BY created_at DESC';
+        $sql = 'SELECT d.id, d.original_filename, d.status, d.created_at, d.parent_document_id, d.folder_id, d.source_account_id FROM documents d WHERE d.deleted_at IS NULL AND d.folder_id ' . ($currentFolderId ? '= ?' : 'IS NULL') . ' ORDER BY d.created_at DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($currentFolderId ? [$currentFolderId] : []);
         $allDocuments = $stmt->fetchAll();
@@ -41,7 +41,8 @@ class DocumentController
         }
         require_once dirname(__DIR__, 2) . '/templates/home.php';
     }
-
+    
+    // ... (autres méthodes inchangées: uploadDocument, getDocumentDetails, downloadDocument, etc.)
     public function uploadDocument(): void
     {
         if (!isset($_FILES['document'])) { header('Location: /?error=nofile'); exit(); }
@@ -145,29 +146,66 @@ class DocumentController
         header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
         exit();
     }
-
+    
     private function sendToPrinter(int $docId): void
     {
         try {
             $pdo = Database::getInstance();
-            
             $printSettingsFile = dirname(__DIR__, 2) . '/config/print_settings.json';
-            if (!file_exists($printSettingsFile)) throw new \Exception("Fichier de configuration d'impression (print_settings.json) manquant.");
-            $printSettings = json_decode(file_get_contents($printSettingsFile), true);
+            if (!file_exists($printSettingsFile)) throw new \Exception("Fichier de configuration d'impression manquant.");
+            $printers = json_decode(file_get_contents($printSettingsFile), true);
+            if (empty($printers)) throw new \Exception("Aucune imprimante configurée.");
 
-            $stmt = $pdo->prepare("SELECT original_filename, stored_filename FROM documents WHERE id = ? AND deleted_at IS NULL");
+            $stmt = $pdo->prepare("SELECT d.original_filename, d.stored_filename, d.folder_id, d.source_account_id, f.default_printer_id as folder_printer_id FROM documents d LEFT JOIN folders f ON d.folder_id = f.id WHERE d.id = ? AND d.deleted_at IS NULL");
             $stmt->execute([$docId]);
             $document = $stmt->fetch();
             if (!$document) throw new \Exception("Document ID $docId non trouvé.");
 
+            $printerIdToUse = null;
+
+            // Priorité 1: Imprimante du dossier
+            if ($document['folder_printer_id']) {
+                $printerIdToUse = $document['folder_printer_id'];
+            }
+            // Priorité 2: Imprimante du compte email source
+            elseif ($document['source_account_id']) {
+                $mailSettings = json_decode(file_get_contents(dirname(__DIR__, 2) . '/config/mail_settings.json'), true);
+                foreach ($mailSettings as $tenant) {
+                    foreach ($tenant['accounts'] as $account) {
+                        if ($account['id'] === $document['source_account_id'] && !empty($account['default_printer_id'])) {
+                            $printerIdToUse = $account['default_printer_id'];
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            // Trouver l'URI de l'imprimante
+            $printerUri = null;
+            if ($printerIdToUse) {
+                foreach ($printers as $printer) {
+                    if ($printer['id'] === $printerIdToUse) {
+                        $printerUri = $printer['uri'];
+                        break;
+                    }
+                }
+            }
+            
+            // Priorité 3: Première imprimante de la liste comme fallback
+            if (!$printerUri && !empty($printers[0]['uri'])) {
+                $printerUri = $printers[0]['uri'];
+            }
+
+            if (!$printerUri) throw new \Exception("Impossible de déterminer une imprimante pour le document ID $docId.");
+            
             $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
             if (!file_exists($filePath)) throw new \Exception("Fichier à imprimer non trouvé : " . $filePath);
 
-            $builder = new Builder($printSettings['cups_host'] ?? '127.0.0.1', $printSettings['cups_port'] ?? 631);
+            $builder = new Builder();
             $printerManager = $builder->getPrinterManager();
-            $printer = $printerManager->findByUri($printSettings['printer_uri']);
+            $printer = $printerManager->findByUri($printerUri);
 
-            if (!$printer) throw new \Exception("Imprimante non trouvée à l'URI : " . ($printSettings['printer_uri'] ?? 'non définie'));
+            if (!$printer) throw new \Exception("Imprimante CUPS non trouvée à l'URI : " . $printerUri);
             
             $job = new Job();
             $job->setName($document['original_filename']);
@@ -182,16 +220,16 @@ class DocumentController
                 $this->notifyClients('print_sent', [
                     'doc_id' => $docId, 
                     'filename' => $document['original_filename'],
-                    'message' => "Document '" . $document['original_filename'] . "' envoyé à l'imprimante."
+                    'message' => "Document '" . htmlspecialchars($document['original_filename']) . "' envoyé à l'imprimante."
                 ]);
             } else {
-                throw new \Exception("L'envoi du travail d'impression à CUPS a échoué.");
+                throw new \Exception("L'envoi du travail à CUPS a échoué.");
             }
         } catch (\Exception $e) {
             error_log("Erreur d'impression (doc ID: $docId): " . $e->getMessage());
         }
     }
-
+    
     public function moveToTrash(): void
     {
         if (empty($_POST['doc_ids'])) die("Aucun document sélectionné.");
