@@ -75,6 +75,19 @@ switch ($requestUri) {
         }
         break;
 
+    // --- Nouvelles routes pour la visualisation et le téléchargement ---
+    case '/document/details':
+        if (isset($_GET['id'])) {
+            $documentController->getDocumentDetails((int)$_GET['id']);
+        }
+        break;
+
+    case '/document/download':
+        if (isset($_GET['id'])) {
+            $documentController->downloadDocument((int)$_GET['id']);
+        }
+        break;
+
     case '/document/update-status':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $documentController->updateDocumentStatus();
@@ -107,6 +120,24 @@ switch ($requestUri) {
             $documentController->forceDelete();
         } else {
             header('Location: /trash');
+            exit();
+        }
+        break;
+        
+    case '/folder/create':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $documentController->createFolder();
+        } else {
+            header('Location: /');
+            exit();
+        }
+        break;
+
+    case '/document/move':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $documentController->moveDocument();
+        } else {
+            header('Location: /');
             exit();
         }
         break;

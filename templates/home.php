@@ -57,7 +57,7 @@
                             ];
                         ?>
                         <?php foreach ($documents as $doc): ?>
-                            <tr data-doc-id="<?= $doc['id'] ?>">
+                            <tr data-doc-id="<?= $doc['id'] ?>" class="email-row">
                                 <td class="col-checkbox">
                                     <input type="checkbox" name="doc_ids[]" value="<?= $doc['id'] ?>" class="doc-checkbox">
                                 </td>
@@ -65,8 +65,8 @@
                                     <span class="status-dot" style="background-color: <?= $status_map[$doc['status']]['color'] ?? '#6c757d' ?>;" title="<?= $status_map[$doc['status']]['label'] ?? 'Inconnu' ?>"></span>
                                 </td>
                                 <td>
-                                    <i data-lucide="file-text" style="width:16px; margin-right: 8px; color: #495057;"></i>
-                                    <?= htmlspecialchars($doc['original_filename']) ?>
+                                    <i data-lucide="mail" style="width:16px; margin-right: 8px; color: #495057;"></i>
+                                    <strong><?= htmlspecialchars($doc['original_filename']) ?></strong>
                                 </td>
                                 <td class="col-actions">
                                     <div class="document-actions">
@@ -91,6 +91,34 @@
                                     </div>
                                 </td>
                             </tr>
+                            <?php if (!empty($doc['attachments'])): ?>
+                                <?php foreach ($doc['attachments'] as $attachment): ?>
+                                    <tr class="attachment-row" data-parent-id="<?= $doc['id'] ?>">
+                                        <td class="col-checkbox">
+                                            <input type="checkbox" name="doc_ids[]" value="<?= $attachment['id'] ?>" class="doc-checkbox attachment-checkbox">
+                                        </td>
+                                        <td class="col-status">
+                                            <span class="status-dot" style="background-color: <?= $status_map[$attachment['status']]['color'] ?? '#6c757d' ?>;" title="<?= $status_map[$attachment['status']]['label'] ?? 'Inconnu' ?>"></span>
+                                        </td>
+                                        <td>
+                                            <i data-lucide="paperclip" style="width:16px; margin-right: 8px; color: #495057;"></i>
+                                            <?= htmlspecialchars($attachment['original_filename']) ?>
+                                        </td>
+                                        <td class="col-actions">
+                                            <div class="document-actions">
+                                                <form action="/document/update-status" method="POST">
+                                                    <input type="hidden" name="doc_id" value="<?= $attachment['id'] ?>">
+                                                    <select name="status" onchange="this.form.submit()" title="Changer le statut">
+                                                        <option value="received" <?= $attachment['status'] == 'received' ? 'selected' : '' ?>>Reçu</option>
+                                                        <option value="to_print" <?= $attachment['status'] == 'to_print' ? 'selected' : '' ?>>À imprimer</option>
+                                                        <option value="printed"  <?= $attachment['status'] == 'printed' ? 'selected' : '' ?>>Imprimé</option>
+                                                    </select>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
@@ -109,10 +137,25 @@
         </form>
     </div>
 
+    <div id="email-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title"></h2>
+                <button id="modal-close-button" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-attachments">
+                    <h3>Pièces jointes</h3>
+                    <ul id="modal-attachments-list"></ul>
+                </div>
+                <div id="modal-preview">
+                    <h3>Aperçu de l'e-mail</h3>
+                    <iframe id="modal-preview-iframe" src="" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/js/home.js"></script>
-    <script>
-        // Initialise les icônes après le chargement de la page
-        lucide.createIcons();
-    </script>
 </body>
 </html>

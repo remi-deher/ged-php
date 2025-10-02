@@ -25,10 +25,29 @@ class DocumentController
         $folders = $foldersStmt->fetchAll();
 
         // Récupérer les documents du dossier actuel
-        $sql = 'SELECT id, original_filename, status, created_at FROM documents WHERE deleted_at IS NULL AND folder_id ' . ($currentFolderId ? '= ?' : 'IS NULL') . ' ORDER BY created_at DESC';
+        $sql = 'SELECT id, original_filename, status, created_at, parent_document_id FROM documents WHERE deleted_at IS NULL AND folder_id ' . ($currentFolderId ? '= ?' : 'IS NULL') . ' ORDER BY created_at DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($currentFolderId ? [$currentFolderId] : []);
-        $documents = $stmt->fetchAll();
+        $allDocuments = $stmt->fetchAll();
+
+        // Organiser les documents en une structure parent-enfant
+        $documents = [];
+        $attachmentsMap = [];
+
+        foreach ($allDocuments as $doc) {
+            if ($doc['parent_document_id'] !== null) {
+                $attachmentsMap[$doc['parent_document_id']][] = $doc;
+            } else {
+                $documents[$doc['id']] = $doc;
+                $documents[$doc['id']]['attachments'] = [];
+            }
+        }
+
+        foreach ($attachmentsMap as $parentId => $attachments) {
+            if (isset($documents[$parentId])) {
+                $documents[$parentId]['attachments'] = $attachments;
+            }
+        }
 
         require_once dirname(__DIR__, 2) . '/templates/home.php';
     }
@@ -78,6 +97,80 @@ class DocumentController
         header('Location: /');
         exit();
     }
+
+    /**
+     * Récupère les détails d'un document et ses pièces jointes en JSON.
+     */
+    public function getDocumentDetails(int $docId): void
+    {
+        header('Content-Type: application/json');
+        $pdo = Database::getInstance();
+
+        try {
+            // Récupérer le document principal (l'e-mail)
+            $mainDocStmt = $pdo->prepare("SELECT id, original_filename, stored_filename FROM documents WHERE id = ? AND deleted_at IS NULL");
+            $mainDocStmt->execute([$docId]);
+            $mainDocument = $mainDocStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$mainDocument) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Document not found']);
+                return;
+            }
+
+            // Récupérer les pièces jointes
+            $attachmentsStmt = $pdo->prepare("SELECT id, original_filename FROM documents WHERE parent_document_id = ? AND deleted_at IS NULL");
+            $attachmentsStmt->execute([$docId]);
+            $attachments = $attachmentsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $response = [
+                'main_document' => $mainDocument,
+                'attachments' => $attachments
+            ];
+
+            echo json_encode($response);
+
+        } catch (\PDOException $e) {
+            http_response_code(500);
+            error_log('Error fetching document details: ' . $e->getMessage());
+            echo json_encode(['error' => 'Database error']);
+        }
+        exit();
+    }
+
+    /**
+     * Gère le téléchargement d'un fichier.
+     */
+    public function downloadDocument(int $docId): void
+    {
+        $pdo = Database::getInstance();
+        $stmt = $pdo->prepare("SELECT original_filename, stored_filename, mime_type FROM documents WHERE id = ? AND deleted_at IS NULL");
+        $stmt->execute([$docId]);
+        $doc = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$doc) {
+            http_response_code(404);
+            die('Document not found.');
+        }
+
+        $filePath = dirname(__DIR__, 2) . '/storage/' . $doc['stored_filename'];
+
+        if (!file_exists($filePath)) {
+            http_response_code(404);
+            die('File not found on server.');
+        }
+
+        header('Content-Description: File Transfer');
+        header('Content-Type: ' . $doc['mime_type']);
+        header('Content-Disposition: inline; filename="' . basename($doc['original_filename']) . '"');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        header('Content-Length: ' . filesize($filePath));
+        readfile($filePath);
+        exit;
+    }
+
 
     /**
      * Met à jour le statut d'un document et déclenche l'impression si nécessaire.

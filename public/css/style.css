@@ -27,7 +27,7 @@ button, .button {
     text-decoration: none; 
     display: inline-block; 
 }
-button:hover {
+button:hover, .button:hover {
     background-color: #0056b3;
 }
 hr { 
@@ -82,19 +82,6 @@ button.delete-btn {
     font-size: 14px; 
     padding: 8px 12px; 
     margin-top: 1rem; 
-}
-#document-list li { 
-    background: #f4f4f4; 
-    padding: 12px; 
-    border-radius: 4px; 
-    margin-bottom: 8px; 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-}
-#document-list li span { 
-    flex-grow: 1; 
-    margin-left: 10px; 
 }
 .new-item { 
     animation: fadeIn 0.5s ease-in-out; 
@@ -195,10 +182,6 @@ input, select {
     color: #495057;
 }
 
-.documents-table tbody tr:hover {
-    background-color: #f1f3f5;
-}
-
 /* Colonnes spécifiques */
 .col-checkbox { width: 40px; text-align: center; }
 .col-status { width: 60px; text-align: center; }
@@ -240,6 +223,101 @@ input, select {
 /* Visibilité du bouton de suppression groupée */
 #bulk-delete-button {
     display: none; /* Caché par défaut */
+}
+
+/* --- Styles pour les pièces jointes --- */
+.attachment-row td {
+    padding-left: 40px;
+    background-color: #f8f9fa;
+}
+
+/* --- Ligne Cliquable --- */
+tr.email-row {
+    cursor: pointer;
+}
+tr.email-row:hover {
+    background-color: #e9ecef;
+}
+
+/* --- Modale --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-content {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1200px;
+    height: 90vh;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    cursor: pointer;
+    line-height: 1;
+    color: #333;
+}
+.modal-body {
+    display: flex;
+    flex: 1;
+    gap: 1.5rem;
+    overflow: hidden;
+}
+#modal-attachments {
+    flex: 0 0 300px;
+    border-right: 1px solid #e9ecef;
+    padding-right: 1.5rem;
+    overflow-y: auto;
+}
+#modal-attachments-list {
+    list-style: none;
+    padding-left: 0;
+}
+#modal-attachments-list li {
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+}
+#modal-attachments-list a {
+    text-decoration: none;
+    color: #007bff;
+    margin-left: 8px;
+}
+#modal-attachments-list a:hover {
+    text-decoration: underline;
+}
+#modal-preview {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+#modal-preview-iframe {
+    width: 100%;
+    height: 100%;
+    border: 1px solid #ddd;
+    border-radius: 4px;
 }
 
 /* ==========================================================================
