@@ -7,24 +7,27 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: auto; padding: 2rem; background-color: #f8f9fa; color: #333; }
         .container { background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         h1, h2 { color: #0056b3; }
-        .header-actions { display: flex; justify-content: space-between; align-items: center; }
-        a.back-link { text-decoration: none; }
         .form-group { margin-bottom: 1rem; }
         .form-group label { display: block; margin-bottom: .5rem; font-weight: bold; }
-        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
         .folder-list { list-style: none; padding: 0; }
         .folder-list li { margin-bottom: 0.5rem; }
-        .error-message { color: #dc3545; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: .75rem 1.25rem; margin-bottom: 1rem; border-radius: .25rem; }
+        .error-message { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: .75rem 1.25rem; margin-bottom: 1rem; border-radius: .25rem; }
     </style>
 </head>
 <body>
     <div class="container">
         <?php require_once __DIR__ . '/parts/navbar.php'; ?>
 
-        <div class="header-actions">
-            <h1>⚙️ Réglages de la messagerie</h1>
-        </div>
+        <h1>⚙️ Réglages de la messagerie</h1>
+
+        <?php if (!empty($errorMessage)): ?>
+            <div class="error-message">
+                <strong>La connexion a échoué.</strong><br>
+                <?= htmlspecialchars($errorMessage) ?>
+            </div>
+        <?php endif; ?>
 
         <form action="/settings/save" method="post">
             <h2>Configuration de la connexion</h2>
@@ -49,7 +52,7 @@
                 </div>
                 <div class="form-group">
                     <label for="graph_client_secret">Secret Client</label>
-                    <input type="password" id="graph_client_secret" name="graph_client_secret" value="<?= htmlspecialchars($settings['graph']['client_secret'] ?? '') ?>">
+                    <input type="password" id="graph_client_secret" name="graph_client_secret" value="">
                 </div>
                 <div class="form-group">
                     <label for="graph_user_email">Adresse e-mail de la boîte à lire</label>
@@ -59,7 +62,7 @@
             
             <div id="imap-fields" style="display: <?= ($settings['service'] ?? '') === 'imap' ? 'block' : 'none' ?>;">
                  <h3>Paramètres IMAP</h3>
-                <p>La connexion IMAP n'est pas encore implémentée dans cette version.</p>
+                <p>La connexion IMAP n'est pas encore implémentée.</p>
             </div>
             
             <?php if (!empty($folders)): ?>
@@ -74,10 +77,6 @@
                             </li>
                         <?php endforeach; ?>
                     </ul>
-                </div>
-            <?php elseif ($isConfigured): ?>
-                <div class="error-message">
-                    <strong>La connexion a échoué.</strong> Aucun dossier n'a pu être récupéré. Veuillez vérifier vos identifiants et les permissions accordées sur le portail Azure.
                 </div>
             <?php endif; ?>
 

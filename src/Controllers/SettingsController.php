@@ -23,12 +23,18 @@ class SettingsController
     {
         $settings = $this->loadSettings();
         $folders = [];
+        $errorMessage = null; // Variable pour stocker le message d'erreur
         
-        // CORRECTION : On prépare la variable pour la vue
         $isConfigured = $this->isConfigured($settings);
 
         if ($isConfigured) {
-            $folders = $this->listFolders();
+            try {
+                $folders = $this->listFolders();
+            } catch (\Exception $e) {
+                // CORRECTION : On capture l'erreur et on la prépare pour l'affichage
+                $errorMessage = "Erreur de l'API Microsoft Graph : " . $e->getMessage();
+                error_log($errorMessage); // Garde une trace dans les logs serveur
+            }
         }
 
         require_once dirname(__DIR__, 2) . '/templates/settings.php';
@@ -39,6 +45,7 @@ class SettingsController
      */
     public function saveSettings(): void
     {
+        // ... (le reste de la méthode est inchangé)
         $settings = [
             'service' => $_POST['service'] ?? 'graph',
             'graph' => [
@@ -56,9 +63,7 @@ class SettingsController
             ],
             'folders' => $_POST['folders'] ?? []
         ];
-
         file_put_contents($this->settingsFile, json_encode($settings, JSON_PRETTY_PRINT));
-
         header('Location: /settings');
         exit();
     }
@@ -68,9 +73,7 @@ class SettingsController
      */
     private function loadSettings(): array
     {
-        if (!file_exists($this->settingsFile)) {
-            return [];
-        }
+        if (!file_exists($this->settingsFile)) { return []; }
         $json = file_get_contents($this->settingsFile);
         return json_decode($json, true) ?: [];
     }
@@ -83,12 +86,12 @@ class SettingsController
         if (($settings['service'] ?? '') === 'graph') {
             return !empty($settings['graph']['tenant_id']) && !empty($settings['graph']['client_id']) && !empty($settings['graph']['client_secret']) && !empty($settings['graph']['user_email']);
         }
-        // Logique IMAP à implémenter
         return false;
     }
 
     /**
-     * Liste les dossiers de la boîte mail (uniquement pour Microsoft Graph pour l'instant).
+     * Liste les dossiers de la boîte mail.
+     * CORRECTION : Ne capture plus l'exception, la laisse remonter.
      */
     public function listFolders(): array
     {
@@ -97,29 +100,22 @@ class SettingsController
             return [];
         }
 
-        try {
-            $tokenRequestContext = new ClientCredentialContext(
-                $settings['graph']['tenant_id'],
-                $settings['graph']['client_id'],
-                $settings['graph']['client_secret']
-            );
-            $graph = new GraphServiceClient($tokenRequestContext);
+        $tokenRequestContext = new ClientCredentialContext(
+            $settings['graph']['tenant_id'],
+            $settings['graph']['client_id'],
+            $settings['graph']['client_secret']
+        );
+        $graph = new GraphServiceClient($tokenRequestContext);
 
-            $mailFolders = $graph->users()->byUserId($settings['graph']['user_email'])->mailFolders()->get()->wait();
-            
-            $folders = [];
-            foreach ($mailFolders->getValue() as $folder) {
-                $folders[] = [
-                    'id' => $folder->getId(),
-                    'name' => $folder->getDisplayName()
-                ];
-            }
-            return $folders;
-
-        } catch (\Exception $e) {
-            // Gérer l'erreur de connexion, par exemple en affichant un message
-            error_log("Erreur lors de la récupération des dossiers Graph: " . $e->getMessage());
-            return [];
+        $mailFolders = $graph->users()->byUserId($settings['graph']['user_email'])->mailFolders()->get()->wait();
+        
+        $folders = [];
+        foreach ($mailFolders->getValue() as $folder) {
+            $folders[] = [
+                'id' => $folder->getId(),
+                'name' => $folder->getDisplayName()
+            ];
         }
+        return $folders;
     }
 }
