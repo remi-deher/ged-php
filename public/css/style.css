@@ -174,3 +174,90 @@ input, select {
     padding: 8px;
     border-bottom: 1px solid #eee;
 }
+
+/* --- Tableau des documents --- */
+.documents-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.5rem;
+}
+
+.documents-table th,
+.documents-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.documents-table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #495057;
+}
+
+.documents-table tbody tr:hover {
+    background-color: #f1f3f5;
+}
+
+/* Colonnes spécifiques */
+.col-checkbox { width: 40px; text-align: center; }
+.col-status { width: 60px; text-align: center; }
+.col-actions { width: 180px; text-align: right; }
+
+/* --- Indicateur de statut --- */
+.status-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+/* --- Icônes et actions --- */
+.document-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+}
+.document-actions .icon-button {
+    background: none;
+    border: none;
+    padding: 5px;
+    cursor: pointer;
+    color: #495057;
+    display: inline-flex;
+    align-items: center;
+}
+.document-actions .icon-button:hover {
+    color: #007bff;
+}
+.document-actions select {
+    padding: 5px;
+    font-size: 14px;
+    width: auto; /* Pour que le select ne prenne pas toute la largeur */
+}
+
+/* Visibilité du bouton de suppression groupée */
+#bulk-delete-button {
+    display: none; /* Caché par défaut */
+}
+
+/* ==========================================================================
+   Améliorations Page Corbeille (trash.php)
+   ========================================================================== */
+
+.trash-actions {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e9ecef;
+    display: none; /* Caché par défaut, affiché par JS */
+}
+
+.trash-actions .button {
+    margin-right: 10px;
+}
+
+.trash-actions .button i {
+    width: 16px;
+    margin-right: 8px;
+}
