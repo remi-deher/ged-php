@@ -1,15 +1,24 @@
-// public/js/settings-tenant.js (COMPLET)
-
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Initialisation des icônes ---
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
+    // --- Fonction utilitaire pour rafraîchir les icônes ---
+    const refreshIcons = () => {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    };
+    
+    // --- Initialisation au chargement ---
+    refreshIcons();
 
     // --- Gestion du dépliage des cartes Tenant ---
-    document.querySelectorAll('.btn-toggle-accounts').forEach(button => {
-        button.addEventListener('click', () => {
-            const card = button.closest('.tenant-card');
+    document.querySelectorAll('.tenant-header').forEach(header => {
+        header.addEventListener('click', (e) => {
+            // On ne déplie pas si le clic vient d'un bouton (comme le bouton "Modifier")
+            if (e.target.closest('button')) {
+                return;
+            }
+
+            const card = header.closest('.tenant-card');
+            const button = header.querySelector('.button-icon');
             const icon = button.querySelector('i');
             const text = button.querySelector('.btn-text');
 
@@ -20,11 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 text.textContent = 'Fermer';
             } else {
                 icon.setAttribute('data-lucide', 'chevron-down');
-                text.textContent = 'Gérer les comptes';
+                text.textContent = 'Gérer';
             }
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            refreshIcons();
         });
     });
+
 
     // --- Gestion de la modale Tenant ---
     const tenantModal = document.getElementById('tenant-modal');
@@ -76,13 +86,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button type="submit" class="button"><i data-lucide="save"></i> Enregistrer</button>
             </div>
         `;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
+        refreshIcons();
         tenantModal.style.display = 'flex';
     };
 
     btnShowTenantForm.addEventListener('click', () => openTenantModal());
     document.querySelectorAll('.btn-edit-tenant').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Empêche le dépliage de la carte
             const tenantData = JSON.parse(btn.dataset.tenant);
             openTenantModal(tenantData);
         });
@@ -137,44 +148,93 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         if (account?.folders?.length) {
-            renderFolderList(account.folders.map(id => ({ id, name: `Dossier ${id}` })), account.folders);
+            // Si on édite un compte qui a déjà des dossiers, on les affiche tout de suite
+            // (on ne peut pas connaître leur nom, juste l'ID, donc on affiche un nom générique)
+            renderFolderList(account.folders.map(id => ({ id: id, name: `Dossier pré-sélectionné` })), account.folders);
         }
 
-        if (typeof lucide !== 'undefined') lucide.createIcons();
+        refreshIcons();
         accountModal.style.display = 'flex';
-
-        // Attacher l'événement au bouton de test
+        
         document.getElementById('btn-list-folders').addEventListener('click', () => listFolders(account?.folders || []));
     };
-
+    
     document.querySelectorAll('.btn-add-account').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
             const tenantId = btn.dataset.tenantId;
             openAccountModal(tenantId);
         });
     });
 
     document.querySelectorAll('.btn-edit-account').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
             const tenantId = btn.dataset.tenantId;
             const accountData = JSON.parse(btn.dataset.account);
             openAccountModal(tenantId, accountData);
         });
     });
 
-    // --- Logique AJAX pour lister les dossiers ---
+    // --- Fonctions AJAX et Rendu ---
     const listFolders = async (selectedFolders = []) => {
-        // ... (code identique à la version précédente)
+        const btn = document.getElementById('btn-list-folders');
+        const folderMsg = document.getElementById('folder-message');
+        const userEmail = document.getElementById('user_email').value;
+
+        if (!userEmail) {
+            folderMsg.className = 'feedback-message error';
+            folderMsg.innerText = "Veuillez d'abord saisir une adresse e-mail.";
+            return;
+        }
+
+        btn.classList.add('loading');
+        btn.disabled = true;
+        folderMsg.innerText = '';
+        folderMsg.className = '';
+
+        const formData = new FormData();
+        formData.append('tenant_id', currentTenantIdForAccount);
+        formData.append('user_email', userEmail);
+        
+        try {
+            const response = await fetch('/settings/ajax/list-folders', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+
+            folderMsg.className = 'feedback-message success';
+            folderMsg.innerText = `Connexion réussie ! ${data.folders.length} dossiers trouvés.`;
+            renderFolderList(data.folders, selectedFolders);
+
+        } catch (error) {
+            folderMsg.className = 'feedback-message error';
+            folderMsg.innerText = `Erreur : ${error.message}`;
+        } finally {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
     };
     
-    // --- Rendu de la liste des dossiers ---
     const renderFolderList = (folders, selected = []) => {
-        // ... (code identique à la version précédente)
+        const folderList = document.getElementById('folder-list');
+        folderList.innerHTML = '';
+        if (folders.length > 0) {
+            folders.forEach(folder => {
+                const isChecked = selected.includes(folder.id) ? 'checked' : '';
+                const name = folder.name || `Dossier ${folder.id}`;
+                folderList.innerHTML += `
+                    <li>
+                        <input type="checkbox" name="folders[]" value="${folder.id}" id="f_${folder.id}" ${isChecked}>
+                        <label for="f_${folder.id}">${name}</label>
+                    </li>`;
+            });
+        }
+        document.getElementById('btn-save-account').disabled = false;
     };
 
 
     // --- Fermeture des modales ---
-    [tenantModal, accountModal].forEach(modal => {
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) modal.style.display = 'none';
         });
