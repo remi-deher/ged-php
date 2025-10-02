@@ -18,11 +18,9 @@ class SettingsController
     public function showSettings(): void
     {
         $tenants = $this->loadSettings();
-        
         $pdo = Database::getInstance();
         $stmt = $pdo->query('SELECT id, name FROM folders ORDER BY name ASC');
         $appFolders = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
         require_once dirname(__DIR__, 2) . '/templates/settings_tenant.php';
     }
 
@@ -33,24 +31,16 @@ class SettingsController
         $isEditing = !empty($_POST['tenant_id']);
         $newSecret = $_POST['graph_client_secret'] ?? '';
         $finalSecret = $newSecret;
-
         $existingTenant = $isEditing ? $this->findTenantById($tenantId) : null;
-
         if ($isEditing && empty($newSecret) && $existingTenant) {
             $finalSecret = $existingTenant['graph']['client_secret'] ?? '';
         }
-
         $tenantData = [
             'tenant_id' => $tenantId,
             'tenant_name' => $_POST['tenant_name'] ?? 'Nouveau Tenant',
-            'graph' => [
-                'tenant_id' => $_POST['graph_tenant_id'] ?? '',
-                'client_id' => $_POST['graph_client_id'] ?? '',
-                'client_secret' => $finalSecret,
-            ],
+            'graph' => [ 'tenant_id' => $_POST['graph_tenant_id'] ?? '', 'client_id' => $_POST['graph_client_id'] ?? '', 'client_secret' => $finalSecret, ],
             'accounts' => $existingTenant['accounts'] ?? []
         ];
-
         $found = false;
         foreach ($tenants as $key => $tenant) {
             if ($tenant['tenant_id'] === $tenantId) {
@@ -60,7 +50,6 @@ class SettingsController
             }
         }
         if (!$found) $tenants[] = $tenantData;
-
         $this->saveSettings($tenants);
         header('Location: /settings');
         exit();
@@ -83,7 +72,6 @@ class SettingsController
         $tenants = $this->loadSettings();
         $tenantId = $_POST['tenant_id'] ?? null;
         $accountId = $_POST['account_id'] ?: 'acc_' . time();
-        
         $foldersData = [];
         if (isset($_POST['folders']) && is_array($_POST['folders'])) {
             foreach ($_POST['folders'] as $folderMapping) {
@@ -93,14 +81,18 @@ class SettingsController
                 }
             }
         }
-        
+        $rulesData = [];
+        if (isset($_POST['automation_rules'])) {
+            $rulesData = json_decode($_POST['automation_rules'], true);
+            if (!is_array($rulesData)) $rulesData = [];
+        }
         $accountData = [
             'id' => $accountId,
             'account_name' => $_POST['account_name'] ?? 'Nouveau Compte',
             'user_email' => $_POST['user_email'] ?? '',
-            'folders' => $foldersData
+            'folders' => $foldersData,
+            'automation_rules' => $rulesData
         ];
-
         foreach ($tenants as $key => &$tenant) {
             if ($tenant['tenant_id'] === $tenantId) {
                 $accountFound = false;
@@ -116,7 +108,6 @@ class SettingsController
                 break;
             }
         }
-
         $this->saveSettings($tenants);
         header('Location: /settings');
         exit();
@@ -127,7 +118,6 @@ class SettingsController
         $tenants = $this->loadSettings();
         $tenantId = $_POST['tenant_id'] ?? null;
         $accountId = $_POST['account_id'] ?? null;
-
         foreach ($tenants as $key => &$tenant) {
             if ($tenant['tenant_id'] === $tenantId) {
                 $tenant['accounts'] = array_values(array_filter($tenant['accounts'] ?? [], fn($acc) => $acc['id'] !== $accountId));
@@ -146,16 +136,12 @@ class SettingsController
             $tenantId = $_POST['tenant_id'] ?? null;
             $userEmail = $_POST['user_email'] ?? null;
             if (!$tenantId || !$userEmail) throw new \Exception("ID du tenant ou e-mail manquant.");
-
             $tenant = $this->findTenantById($tenantId);
             if (!$tenant) throw new \Exception("Tenant non trouvé.");
-            
             $credentials = $tenant['graph'];
             if (empty($credentials['client_secret'])) throw new \Exception("Le Secret Client n'est pas configuré pour ce tenant.");
-
             $graphService = new MicrosoftGraphService($credentials);
             $folders = $graphService->listMailFolders($userEmail);
-            
             echo json_encode(['folders' => $folders]);
         } catch (\Exception $e) {
             http_response_code(500);
@@ -172,12 +158,10 @@ class SettingsController
             if (empty(trim($folderName))) {
                 throw new \Exception("Le nom du dossier ne peut pas être vide.");
             }
-
             $pdo = Database::getInstance();
             $stmt = $pdo->prepare("INSERT INTO folders (name) VALUES (?)");
             $stmt->execute([trim($folderName)]);
             $newFolderId = $pdo->lastInsertId();
-
             echo json_encode(['success' => true, 'id' => $newFolderId, 'name' => trim($folderName)]);
         } catch (\Exception $e) {
             http_response_code(500);
@@ -190,25 +174,16 @@ class SettingsController
         if (!file_exists($this->settingsFile) || filesize($this->settingsFile) === 0) return [];
         $data = json_decode(file_get_contents($this->settingsFile), true);
         if (!is_array($data)) return [];
-
         if (isset($data[0]) && isset($data[0]['graph']['user_email'])) {
             $migratedTenant = [
                 'tenant_id' => 'tenant_' . time(),
                 'tenant_name' => 'Tenant Principal (Migré)',
-                'graph' => [
-                    'tenant_id' => $data[0]['graph']['tenant_id'] ?? '',
-                    'client_id' => $data[0]['graph']['client_id'] ?? '',
-                    'client_secret' => $data[0]['graph']['client_secret'] ?? '',
-                ],
+                'graph' => ['tenant_id' => $data[0]['graph']['tenant_id'] ?? '', 'client_id' => $data[0]['graph']['client_id'] ?? '', 'client_secret' => $data[0]['graph']['client_secret'] ?? ''],
                 'accounts' => []
             ];
             foreach ($data as $oldAccount) {
-                $migratedTenant['accounts'][] = [
-                    'id' => $oldAccount['id'] ?? 'acc_' . uniqid(),
-                    'account_name' => $oldAccount['account_name'] ?? 'Compte Migré',
-                    'user_email' => $oldAccount['graph']['user_email'] ?? '',
-                    'folders' => is_array($oldAccount['folders']) ? array_map(fn($id) => ['id' => $id, 'name' => 'Unknown', 'destination_folder_id' => 'root'], $oldAccount['folders']) : []
-                ];
+                $folders = is_array($oldAccount['folders']) ? array_map(fn($id) => ['id' => $id, 'name' => 'Unknown', 'destination_folder_id' => 'root'], $oldAccount['folders']) : [];
+                $migratedTenant['accounts'][] = ['id' => $oldAccount['id'] ?? 'acc_' . uniqid(), 'account_name' => $oldAccount['account_name'] ?? 'Compte Migré', 'user_email' => $oldAccount['graph']['user_email'] ?? '', 'folders' => $folders];
             }
             $newData = [$migratedTenant];
             $this->saveSettings($newData);

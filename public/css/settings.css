@@ -1,4 +1,5 @@
 /* public/css/settings.css */
+
 .settings-container { max-width: 800px; margin: auto; }
 .tenant-card { background: #fff; border: 1px solid #e9ecef; border-radius: 8px; margin-bottom: 1.5rem; box-shadow: 0 4px 8px rgba(0,0,0,0.05); transition: box-shadow 0.3s ease; }
 .tenant-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
@@ -18,7 +19,7 @@
 .btn-add-account { background: none; border: 1px dashed #007bff; color: #007bff; width: 100%; padding: 10px; font-weight: bold; }
 .btn-add-account:hover { background-color: rgba(0, 123, 255, 0.05); }
 .form-toggle-container { text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #e9ecef; }
-.modal-content { max-width: 600px; height: auto; max-height: 90vh; }
+.modal-content { max-width: 700px; height: auto; max-height: 90vh; }
 .modal-body { padding: 1rem; overflow-y: auto; }
 .input-group { position: relative; margin-bottom: 1.25rem; }
 .input-group .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #aaa; }
@@ -42,3 +43,18 @@ button.loading .btn-text { display: none; }
 .folder-table tbody tr:hover { background-color: #f1f1f1; }
 .folder-table td label { cursor: pointer; display: block; width: 100%; height: 100%; }
 .destination-folder-select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; background-color: #fff; }
+
+#automation-rules-area { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e9ecef; }
+#automation-rules-area h3 { display: flex; align-items: center; gap: 8px; font-size: 1.2rem; margin-bottom: 1rem; }
+.automation-rule { background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+.rule-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.rule-name { flex-grow: 1; font-weight: bold; border: none; background: none; font-size: 1rem; }
+.rule-name:focus { outline: none; background-color: #fff; }
+.rule-body { padding-left: 1rem; border-left: 3px solid #007bff; }
+.rule-condition { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 0.5rem; }
+.rule-condition select, .rule-condition input { padding: 5px; border-radius: 4px; border: 1px solid #ccc; }
+.rule-actions { margin: 1rem 0; }
+.rule-actions select { display: inline-block; width: auto; margin-left: 10px; }
+.btn-remove-rule, .btn-remove-condition { padding: 5px; background: none; color: #dc3545; }
+.btn-remove-rule:hover, .btn-remove-condition:hover { background-color: #f8d7da; }
+.btn-add-condition { background: none; border: none; color: #007bff; padding: 5px; font-size: 14px; }
