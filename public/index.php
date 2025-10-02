@@ -14,35 +14,51 @@ error_reporting(E_ALL);
 // Inclusion de l'autoloader de Composer, qui gère le chargement de toutes nos classes
 require_once __DIR__ . '/../vendor/autoload.php';
 
-// Importation de la classe DocumentController pour la rendre plus facile à utiliser
+// Importation des classes des contrôleurs
 use App\Controllers\DocumentController;
+use App\Controllers\SettingsController;
 
-// Récupération de l'URI de la requête sans les paramètres GET (ex: /upload au lieu de /upload?id=1)
+// Récupération de l'URI de la requête sans les paramètres GET
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
-// Création d'une instance de notre contrôleur
-$controller = new DocumentController();
+// Création des instances de nos contrôleurs
+$documentController = new DocumentController();
+$settingsController = new SettingsController();
 
 // Routage simple basé sur l'URI demandée
 switch ($requestUri) {
     // Page d'accueil : affiche la liste des documents actifs
     case '/':
-        $controller->listDocuments();
+        $documentController->listDocuments();
         break;
 
-    // Nouvelle route : affiche le contenu de la corbeille
+    // Affiche le contenu de la corbeille
     case '/trash':
-        $controller->listTrash();
+        $documentController->listTrash();
+        break;
+        
+    // Affiche la page des réglages
+    case '/settings':
+        $settingsController->showSettingsForm();
         break;
 
     // --- ACTIONS (traitées uniquement via la méthode POST) ---
 
+    // Action pour sauvegarder les réglages
+    case '/settings/save':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $settingsController->saveSettings();
+        } else {
+            header('Location: /settings');
+            exit();
+        }
+        break;
+
     // Action pour envoyer un nouveau fichier
     case '/upload':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $controller->uploadDocument();
+            $documentController->uploadDocument();
         } else {
-            // Si la méthode n'est pas POST, on redirige vers l'accueil
             header('Location: /');
             exit();
         }
@@ -51,7 +67,7 @@ switch ($requestUri) {
     // Action pour mettre à jour le statut d'un document
     case '/document/update-status':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $controller->updateDocumentStatus();
+            $documentController->updateDocumentStatus();
         } else {
             header('Location: /');
             exit();
@@ -61,7 +77,7 @@ switch ($requestUri) {
     // Action pour envoyer un document à la corbeille (soft delete)
     case '/document/delete':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $controller->moveToTrash();
+            $documentController->moveToTrash();
         } else {
             header('Location: /');
             exit();
@@ -71,9 +87,8 @@ switch ($requestUri) {
     // Action pour restaurer un document depuis la corbeille
     case '/document/restore':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $controller->restoreDocument();
+            $documentController->restoreDocument();
         } else {
-            // On redirige vers la corbeille si la méthode n'est pas bonne
             header('Location: /trash');
             exit();
         }
@@ -82,7 +97,7 @@ switch ($requestUri) {
     // Action pour supprimer définitivement un document
     case '/document/force-delete':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $controller->forceDelete();
+            $documentController->forceDelete();
         } else {
             header('Location: /trash');
             exit();

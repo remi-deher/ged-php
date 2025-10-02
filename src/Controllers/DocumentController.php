@@ -10,13 +10,23 @@ use WebSocket\Client;
 class DocumentController
 {
     /**
-     * Affiche la page d'accueil avec les documents actifs (non supprimés).
+     * Affiche la page d'accueil avec les documents actifs et les dossiers.
      */
     public function listDocuments(): void
     {
         $pdo = Database::getInstance();
-        // MODIFICATION : On ne sélectionne que les documents où deleted_at est NULL
-        $stmt = $pdo->query('SELECT id, original_filename, status, created_at FROM documents WHERE deleted_at IS NULL ORDER BY created_at DESC');
+
+        // Récupérer le dossier actuel (ou racine si non spécifié)
+        $currentFolderId = isset($_GET['folder_id']) ? (int)$_GET['folder_id'] : null;
+
+        // Récupérer tous les dossiers pour la navigation
+        $foldersStmt = $pdo->query('SELECT id, name FROM folders ORDER BY name ASC');
+        $folders = $foldersStmt->fetchAll();
+
+        // Récupérer les documents du dossier actuel
+        $sql = 'SELECT id, original_filename, status, created_at FROM documents WHERE deleted_at IS NULL AND folder_id ' . ($currentFolderId ? '= ?' : 'IS NULL') . ' ORDER BY created_at DESC';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($currentFolderId ? [$currentFolderId] : []);
         $documents = $stmt->fetchAll();
 
         require_once dirname(__DIR__, 2) . '/templates/home.php';
@@ -135,72 +145,80 @@ class DocumentController
     }
 
     /**
-     * [NOUVEAU] Met un document dans la corbeille (soft delete).
+     * [MODIFIÉ] Met plusieurs documents dans la corbeille (soft delete).
      */
     public function moveToTrash(): void
     {
-        if (!isset($_POST['doc_id'])) {
-            die("ID de document manquant.");
+        if (empty($_POST['doc_ids'])) {
+            die("Aucun document sélectionné.");
         }
-        $docId = (int)$_POST['doc_id'];
+        $docIds = $_POST['doc_ids'];
 
         $pdo = Database::getInstance();
-        $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NOW() WHERE id = ?");
-        $stmt->execute([$docId]);
-
-        $this->notifyClients('document_deleted', ['doc_id' => $docId]);
+        // Crée une chaîne de '?' pour la clause IN
+        $inQuery = implode(',', array_fill(0, count($docIds), '?'));
         
-        header('Location: /');
+        $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NOW() WHERE id IN ($inQuery)");
+        $stmt->execute($docIds);
+
+        foreach ($docIds as $docId) {
+            $this->notifyClients('document_deleted', ['doc_id' => $docId]);
+        }
+        
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
         exit();
     }
 
     /**
-     * [NOUVEAU] Restaure un document depuis la corbeille.
+     * [MODIFIÉ] Restaure plusieurs documents depuis la corbeille.
      */
     public function restoreDocument(): void
     {
-        if (!isset($_POST['doc_id'])) {
-            die("ID de document manquant.");
+        if (empty($_POST['doc_ids'])) {
+            die("Aucun document sélectionné.");
         }
-        $docId = (int)$_POST['doc_id'];
+        $docIds = $_POST['doc_ids'];
 
         $pdo = Database::getInstance();
-        $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NULL WHERE id = ?");
-        $stmt->execute([$docId]);
+        $inQuery = implode(',', array_fill(0, count($docIds), '?'));
+        
+        $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NULL WHERE id IN ($inQuery)");
+        $stmt->execute($docIds);
         
         // On pourrait notifier les clients de la restauration
         
-        header('Location: /trash'); // Redirige vers la page de la corbeille
+        header('Location: /trash');
         exit();
     }
 
     /**
-     * [NOUVEAU] Supprime définitivement un document.
+     * [MODIFIÉ] Supprime définitivement plusieurs documents.
      */
     public function forceDelete(): void
     {
-        if (!isset($_POST['doc_id'])) {
-            die("ID de document manquant.");
+        if (empty($_POST['doc_ids'])) {
+            die("Aucun document sélectionné.");
         }
-        $docId = (int)$_POST['doc_id'];
+        $docIds = $_POST['doc_ids'];
+        $inQuery = implode(',', array_fill(0, count($docIds), '?'));
 
         $pdo = Database::getInstance();
         
-        // 1. Récupérer le nom du fichier pour le supprimer du disque
-        $stmt = $pdo->prepare("SELECT stored_filename FROM documents WHERE id = ?");
-        $stmt->execute([$docId]);
-        $document = $stmt->fetch();
+        // 1. Récupérer les noms des fichiers pour les supprimer du disque
+        $stmt = $pdo->prepare("SELECT stored_filename FROM documents WHERE id IN ($inQuery)");
+        $stmt->execute($docIds);
+        $documents = $stmt->fetchAll();
 
-        if ($document) {
+        foreach ($documents as $document) {
             $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
             if (file_exists($filePath)) {
-                unlink($filePath); // Suppression du fichier physique
+                unlink($filePath);
             }
         }
 
-        // 2. Supprimer l'entrée de la base de données
-        $deleteStmt = $pdo->prepare("DELETE FROM documents WHERE id = ?");
-        $deleteStmt->execute([$docId]);
+        // 2. Supprimer les entrées de la base de données
+        $deleteStmt = $pdo->prepare("DELETE FROM documents WHERE id IN ($inQuery)");
+        $deleteStmt->execute($docIds);
 
         header('Location: /trash');
         exit();
@@ -220,6 +238,38 @@ class DocumentController
     }
 
     /**
+     * [NOUVEAU] Crée un nouveau dossier.
+     */
+    public function createFolder(): void
+    {
+        if (isset($_POST['folder_name']) && !empty(trim($_POST['folder_name']))) {
+            $folderName = trim($_POST['folder_name']);
+            $pdo = Database::getInstance();
+            $stmt = $pdo->prepare("INSERT INTO folders (name) VALUES (?)");
+            $stmt->execute([$folderName]);
+        }
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+        exit();
+    }
+
+    /**
+     * [NOUVEAU] Déplace un document vers un dossier.
+     */
+    public function moveDocument(): void
+    {
+        if (isset($_POST['doc_id'], $_POST['folder_id'])) {
+            $docId = (int)$_POST['doc_id'];
+            $folderId = $_POST['folder_id'] === 'root' ? null : (int)$_POST['folder_id']; // 'root' pour la racine
+
+            $pdo = Database::getInstance();
+            $stmt = $pdo->prepare("UPDATE documents SET folder_id = ? WHERE id = ?");
+            $stmt->execute([$folderId, $docId]);
+        }
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+        exit();
+    }
+
+    /**
      * Fonction générique pour envoyer des notifications au serveur WebSocket.
      */
     private function notifyClients(string $action, array $data): void
@@ -234,4 +284,3 @@ class DocumentController
         }
     }
 }
-
