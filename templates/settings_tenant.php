@@ -19,7 +19,8 @@
                 <?php else: ?>
                     <?php foreach($tenants as $tenant): ?>
                         <div class="tenant-card" id="tenant-<?= htmlspecialchars($tenant['tenant_id'] ?? '') ?>">
-                            <div class="tenant-header btn-toggle-accounts"> <div class="tenant-info">
+                            <div class="tenant-header btn-toggle-accounts">
+                                <div class="tenant-info">
                                     <i data-lucide="building"></i>
                                     <h2 class="tenant-name"><?= htmlspecialchars($tenant['tenant_name'] ?? 'Tenant non nommé') ?></h2>
                                 </div>
@@ -75,36 +76,13 @@
                 </button>
             </div>
 
-            <div id="tenant-modal" class="modal-overlay" style="display:none;">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2 id="tenant-modal-title">Ajouter un Tenant</h2>
-                        <button class="modal-close">&times;</button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="tenant-form" action="/settings/tenant/save" method="POST"></form>
-                    </div>
-                </div>
-            </div>
-
-             <div id="account-modal" class="modal-overlay" style="display:none;">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2 id="account-modal-title">Ajouter une boîte mail</h2>
-                        <button class="modal-close">&times;</button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="account-form" action="/settings/account/save" method="POST"></form>
-                    </div>
-                </div>
-            </div>
+            <div id="tenant-modal" class="modal-overlay" style="display:none;"><div class="modal-content"><div class="modal-header"><h2 id="tenant-modal-title"></h2><button class="modal-close">&times;</button></div><div class="modal-body"><form id="tenant-form" action="/settings/tenant/save" method="POST"></form></div></div></div>
+            <div id="account-modal" class="modal-overlay" style="display:none;"><div class="modal-content"><div class="modal-header"><h2 id="account-modal-title"></h2><button class="modal-close">&times;</button></div><div class="modal-body"><form id="account-form" action="/settings/account/save" method="POST"></form></div></div></div>
         </div>
     </div>
-    <script src="/js/settings-tenant.js"></script>
     <script>
-        window.addEventListener('load', () => {
-             if (typeof lucide !== 'undefined') lucide.createIcons();
-        });
+        window.appFolders = <?= json_encode($appFolders ?? [], JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     </script>
+    <script src="/js/settings-tenant.js"></script>
 </body>
 </html>

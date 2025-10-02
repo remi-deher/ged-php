@@ -3,6 +3,7 @@
 
 namespace App\Controllers;
 
+use App\Core\Database;
 use App\Services\MicrosoftGraphService;
 
 class SettingsController
@@ -17,7 +18,11 @@ class SettingsController
     public function showSettings(): void
     {
         $tenants = $this->loadSettings();
-        // Le renommage de la vue est important pour la clarté
+        
+        $pdo = Database::getInstance();
+        $stmt = $pdo->query('SELECT id, name FROM folders ORDER BY name ASC');
+        $appFolders = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
         require_once dirname(__DIR__, 2) . '/templates/settings_tenant.php';
     }
 
@@ -79,14 +84,24 @@ class SettingsController
         $tenantId = $_POST['tenant_id'] ?? null;
         $accountId = $_POST['account_id'] ?: 'acc_' . time();
         
+        $foldersData = [];
+        if (isset($_POST['folders']) && is_array($_POST['folders'])) {
+            foreach ($_POST['folders'] as $folderMapping) {
+                $mapping = json_decode($folderMapping, true);
+                if ($mapping && isset($mapping['id']) && isset($mapping['destination_folder_id'])) {
+                    $foldersData[] = $mapping;
+                }
+            }
+        }
+        
         $accountData = [
             'id' => $accountId,
             'account_name' => $_POST['account_name'] ?? 'Nouveau Compte',
             'user_email' => $_POST['user_email'] ?? '',
-            'folders' => $_POST['folders'] ?? []
+            'folders' => $foldersData
         ];
 
-        foreach ($tenants as $key => &$tenant) { // Pass by reference
+        foreach ($tenants as $key => &$tenant) {
             if ($tenant['tenant_id'] === $tenantId) {
                 $accountFound = false;
                 if (!isset($tenant['accounts'])) $tenant['accounts'] = [];
@@ -149,14 +164,33 @@ class SettingsController
         }
     }
 
+    public function ajaxCreateFolder(): void
+    {
+        header('Content-Type: application/json');
+        try {
+            $folderName = $_POST['folder_name'] ?? null;
+            if (empty(trim($folderName))) {
+                throw new \Exception("Le nom du dossier ne peut pas être vide.");
+            }
+
+            $pdo = Database::getInstance();
+            $stmt = $pdo->prepare("INSERT INTO folders (name) VALUES (?)");
+            $stmt->execute([trim($folderName)]);
+            $newFolderId = $pdo->lastInsertId();
+
+            echo json_encode(['success' => true, 'id' => $newFolderId, 'name' => trim($folderName)]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    }
+
     private function loadSettings(): array
     {
         if (!file_exists($this->settingsFile) || filesize($this->settingsFile) === 0) return [];
         $data = json_decode(file_get_contents($this->settingsFile), true);
         if (!is_array($data)) return [];
 
-        // --- LOGIQUE DE MIGRATION AUTOMATIQUE ---
-        // Détecte l'ancien format (un tableau de comptes) et le convertit.
         if (isset($data[0]) && isset($data[0]['graph']['user_email'])) {
             $migratedTenant = [
                 'tenant_id' => 'tenant_' . time(),
@@ -168,21 +202,18 @@ class SettingsController
                 ],
                 'accounts' => []
             ];
-
             foreach ($data as $oldAccount) {
                 $migratedTenant['accounts'][] = [
                     'id' => $oldAccount['id'] ?? 'acc_' . uniqid(),
                     'account_name' => $oldAccount['account_name'] ?? 'Compte Migré',
                     'user_email' => $oldAccount['graph']['user_email'] ?? '',
-                    'folders' => $oldAccount['folders'] ?? []
+                    'folders' => is_array($oldAccount['folders']) ? array_map(fn($id) => ['id' => $id, 'name' => 'Unknown', 'destination_folder_id' => 'root'], $oldAccount['folders']) : []
                 ];
             }
-            
             $newData = [$migratedTenant];
             $this->saveSettings($newData);
             return $newData;
         }
-
         return $data;
     }
 

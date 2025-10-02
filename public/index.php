@@ -70,6 +70,12 @@ switch ($requestUri) {
             $settingsController->ajaxListFolders();
         }
         break;
+        
+    case '/settings/ajax/create-folder':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $settingsController->ajaxCreateFolder();
+        }
+        break;
 
     // --- Actions pour les documents (traitées via POST) ---
     case '/upload':
