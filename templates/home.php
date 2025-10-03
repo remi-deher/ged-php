@@ -35,9 +35,7 @@ function getFileIcon($mimeType) {
         <div class="main-layout">
             <main id="main-content" class="main-content">
                 <div id="print-queue-dashboard" class="card" style="display: none;">
-                    <div class="card-header">
-                        <h2>🖨️ File d'impression en cours</h2>
-                    </div>
+                    <div class="card-header"><h2>🖨️ File d'impression en cours</h2></div>
                     <div class="card-body">
                         <table class="table">
                             <thead><tr><th>Fichier</th><th>Job ID</th><th>Statut</th><th>Détails</th><th>Actions</th></tr></thead>
@@ -50,7 +48,7 @@ function getFileIcon($mimeType) {
                      <?php if (isset($currentFolder) && $currentFolder): ?>
                         <h1><a href="/" class="breadcrumb-link" id="root-dropzone" data-folder-id="root">Documents</a> / 📁 <?= htmlspecialchars($currentFolder['name']) ?></h1>
                     <?php elseif (isset($_GET['q'])): ?>
-                         <h1>🔍 Résultats de recherche pour "<?= htmlspecialchars($_GET['q']) ?>"</h1>
+                         <h1>🔍 Résultats pour "<?= htmlspecialchars($_GET['q']) ?>"</h1>
                     <?php else: ?>
                         <h1>📁 Documents</h1>
                     <?php endif; ?>
@@ -62,13 +60,12 @@ function getFileIcon($mimeType) {
                     </div>
                 </div>
 
-                <?php if (!isset($currentFolder) || !$currentFolder): ?>
+                <?php if (!isset($currentFolder) || !$currentFolder && !isset($_GET['q'])): ?>
                 <div class="card">
                     <div class="card-header">
                         <h2>📂 Dossiers</h2>
                         <form action="/folder/create" method="POST" class="create-folder-form">
-                            <input type="text" name="folder_name" placeholder="Nom du nouveau dossier" required>
-                            <button type="submit" class="button">Créer</button>
+                            <input type="text" name="folder_name" placeholder="Nom du nouveau dossier" required><button type="submit" class="button">Créer</button>
                         </form>
                     </div>
                     <div class="card-body" style="padding: 1.5rem;">
@@ -101,20 +98,10 @@ function getFileIcon($mimeType) {
                      <div class="card-body">
                         <div id="document-list-view">
                             <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th class="col-checkbox"><input type="checkbox" id="select-all-checkbox" title="Tout sélectionner"></th>
-                                        <th class="col-status">Statut</th>
-                                        <th>Nom du fichier</th>
-                                        <th>Source</th>
-                                        <th>Taille</th>
-                                        <th>Date d'ajout</th>
-                                        <th class="col-actions">Actions</th>
-                                    </tr>
-                                </thead>
+                                <thead><tr><th class="col-checkbox"><input type="checkbox" id="select-all-checkbox" title="Tout sélectionner"></th><th class="col-status">Statut</th><th>Nom du fichier</th><th>Source</th><th>Taille</th><th>Date d'ajout</th><th class="col-actions">Actions</th></tr></thead>
                                 <tbody>
                                     <?php if (isset($documents) && !empty($documents)): ?>
-                                        <?php $status_map = ['received' => ['color' => '#007bff', 'label' => 'Reçu'], 'to_print' => ['color' => '#ffc107', 'label' => 'À imprimer'], 'printed' => ['color' => '#28a745', 'label' => 'Imprimé'], 'print_error' => ['color' => '#dc3545', 'label' => 'Erreur d\'impression']]; ?>
+                                        <?php $status_map = ['received' => ['color' => '#007bff', 'label' => 'Reçu'], 'to_print' => ['color' => '#ffc107', 'label' => 'À imprimer'], 'printed' => ['color' => '#28a745', 'label' => 'Imprimé'], 'print_error' => ['color' => '#dc3545', 'label' => 'Erreur']]; ?>
                                         <?php foreach ($documents as $doc): ?>
                                             <tr data-doc-id="<?= $doc['id'] ?>" class="document-row" draggable="true">
                                                 <td class="col-checkbox"><input type="checkbox" name="doc_ids[]" value="<?= $doc['id'] ?>" class="doc-checkbox" form="bulk-action-form"></td>
@@ -123,12 +110,7 @@ function getFileIcon($mimeType) {
                                                 <td><?= $doc['source_account_id'] ? '📧 E-mail' : '📥 Manuel' ?></td>
                                                 <td><?= formatSizeUnits($doc['size']) ?></td>
                                                 <td><?= date('d/m/Y H:i', strtotime($doc['created_at'])) ?></td>
-                                                <td class="col-actions">
-                                                    <div class="document-actions">
-                                                        <form action="/document/print" method="POST" class="action-form"><input type="hidden" name="doc_id" value="<?= $doc['id'] ?>"><button type="submit" class="button-icon" title="Imprimer">🖨️</button></form>
-                                                        <form action="/document/delete" method="POST" class="action-form" onsubmit="return confirm('Confirmer la mise à la corbeille ?');"><input type="hidden" name="doc_ids[]" value="<?= $doc['id'] ?>"><button type="submit" class="button-icon button-delete" title="Corbeille">🗑️</button></form>
-                                                    </div>
-                                                </td>
+                                                <td class="col-actions"><div class="document-actions"><form action="/document/print" method="POST" class="action-form"><input type="hidden" name="doc_id" value="<?= $doc['id'] ?>"><button type="submit" class="button-icon" title="Imprimer">🖨️</button></form><form action="/document/delete" method="POST" class="action-form" onsubmit="return confirm('Confirmer ?');"><input type="hidden" name="doc_ids[]" value="<?= $doc['id'] ?>"><button type="submit" class="button-icon button-delete" title="Corbeille">🗑️</button></form></div></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else: ?>
@@ -152,19 +134,10 @@ function getFileIcon($mimeType) {
             </main>
 
             <aside id="details-sidebar" class="details-sidebar">
-                <div class="sidebar-header">
-                    <h2 id="sidebar-title">Détails</h2>
-                    <button id="sidebar-close-btn" class="modal-close">&times;</button>
-                </div>
+                <div class="sidebar-header"><h2 id="sidebar-title">Détails</h2><button id="sidebar-close-btn" class="modal-close">&times;</button></div>
                 <div class="sidebar-body">
-                    <div id="sidebar-info" class="sidebar-info">
-                        <h3>Informations</h3>
-                        <ul id="sidebar-info-list"></ul>
-                    </div>
-                    <div id="sidebar-attachments" class="sidebar-attachments">
-                        <button id="sidebar-attachments-toggle-btn" class="attachments-toggle-btn">Pièces jointes <span class="arrow">▼</span></button>
-                        <ul id="sidebar-attachments-list" class="sidebar-attachments-list collapsed"></ul>
-                    </div>
+                    <div id="sidebar-info" class="sidebar-info"><h3>Informations</h3><ul id="sidebar-info-list"></ul></div>
+                    <div id="sidebar-attachments" class="sidebar-attachments"><button id="sidebar-attachments-toggle-btn" class="attachments-toggle-btn">Pièces jointes <span class="arrow">▼</span></button><ul id="sidebar-attachments-list" class="sidebar-attachments-list collapsed"></ul></div>
                 </div>
             </aside>
         </div>
@@ -172,18 +145,13 @@ function getFileIcon($mimeType) {
     
     <div id="document-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="max-width: 1200px; height: 90vh;">
-            <div class="modal-header">
-                <h2 id="modal-title"></h2>
-                <button class="modal-close">&times;</button>
-            </div>
+            <div class="modal-header"><h2 id="modal-title"></h2><button class="modal-close">&times;</button></div>
             <div class="modal-body-split">
                 <div id="modal-attachments" class="modal-attachments">
-                    <div class="attachments-header">
-                        <h3>Pièces jointes</h3>
-                        <button id="modal-attachments-toggle-btn" title="Masquer/Afficher les pièces jointes">‹</button>
-                    </div>
+                    <div class="attachments-header"><h3>Pièces jointes</h3></div>
                     <ul id="modal-attachments-list" class="modal-attachments-list"></ul>
                 </div>
+                <button id="modal-attachments-toggle-btn" title="Masquer les pièces jointes">‹</button>
                 <div id="modal-preview" class="modal-preview">
                     <iframe id="modal-preview-iframe" class="modal-preview-iframe"></iframe>
                 </div>
