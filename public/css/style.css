@@ -336,3 +336,67 @@ tr.email-row:hover {
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
 }
+
+/* Style pour les boutons d'action individuels (icônes) */
+.button-icon {
+    background: none;
+    border: 1px solid transparent;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #495057;
+}
+.button-icon:hover {
+    background-color: #f1f1f1;
+    border-color: #ddd;
+}
+/* Couleur spécifique pour le bouton d'impression */
+.btn-print {
+    background-color: #6c757d; /* Gris neutre */
+    color: white;
+}
+.btn-print:hover {
+    background-color: #5a6268;
+}
+
+/* Conteneur pour les actions de groupe */
+.bulk-actions-container button {
+    display: none; /* Cachés par défaut, affichés par le JS */
+    margin-right: 10px;
+}
+
+/* Permet aux formulaires d'action d'être sur la même ligne */
+.action-form {
+    display: inline-block;
+}
+
+/* Styles pour les notifications "toast" */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.toast {
+    background-color: #333;
+    color: #fff;
+    padding: 15px 20px;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.5s ease;
+}
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}

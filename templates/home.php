@@ -36,7 +36,15 @@
         </form>
 
         <h3>Fichiers</h3>
-        <form action="/document/delete" method="POST" id="bulk-action-form" onsubmit="return confirm('Êtes-vous sûr de vouloir mettre les documents sélectionnés à la corbeille ?');">
+        <form method="POST" id="bulk-action-form">
+            <div class="bulk-actions-container" style="margin-bottom: 1rem;">
+                <button type="submit" id="bulk-print-button" class="button btn-print" formaction="/document/bulk-print">
+                    <i data-lucide="printer"></i> Imprimer la sélection
+                </button>
+                <button type="submit" id="bulk-delete-button" class="button btn-delete" formaction="/document/delete" onsubmit="return confirm('Confirmer la mise à la corbeille ?');">
+                    <i data-lucide="trash-2"></i> Mettre à la corbeille
+                </button>
+            </div>
             
             <table class="documents-table">
                 <thead>
@@ -65,22 +73,27 @@
                                     <span class="status-dot" style="background-color: <?= $status_map[$doc['status']]['color'] ?? '#6c757d' ?>;" title="<?= $status_map[$doc['status']]['label'] ?? 'Inconnu' ?>"></span>
                                 </td>
                                 <td>
-                                    <i data-lucide="mail" style="width:16px; margin-right: 8px; color: #495057;"></i>
                                     <strong><?= htmlspecialchars($doc['original_filename']) ?></strong>
                                 </td>
                                 <td class="col-actions">
                                     <div class="document-actions">
-                                        <form action="/document/move" method="POST">
+                                        <form action="/document/print" method="POST" class="action-form">
+                                            <input type="hidden" name="doc_id" value="<?= $doc['id'] ?>">
+                                            <button type="submit" class="button-icon btn-print" title="Imprimer ce document">
+                                                <i data-lucide="printer"></i>
+                                            </button>
+                                        </form>
+                                        <form action="/document/move" method="POST" class="action-form">
                                             <input type="hidden" name="doc_id" value="<?= $doc['id'] ?>">
                                             <select name="folder_id" onchange="this.form.submit()" title="Déplacer le document">
                                                 <option value="" disabled selected>Déplacer...</option>
                                                 <option value="root">Racine</option>
-                                                <?php foreach ($folders as $folder): ?>
+                                                <?php if (isset($folders)): foreach ($folders as $folder): ?>
                                                 <option value="<?= $folder['id'] ?>"><?= htmlspecialchars($folder['name']) ?></option>
-                                                <?php endforeach; ?>
+                                                <?php endforeach; endif; ?>
                                             </select>
                                         </form>
-                                        <form action="/document/update-status" method="POST">
+                                        <form action="/document/update-status" method="POST" class="action-form">
                                             <input type="hidden" name="doc_id" value="<?= $doc['id'] ?>">
                                             <select name="status" onchange="this.form.submit()" title="Changer le statut">
                                                 <option value="received" <?= $doc['status'] == 'received' ? 'selected' : '' ?>>Reçu</option>
@@ -92,33 +105,7 @@
                                 </td>
                             </tr>
                             <?php if (!empty($doc['attachments'])): ?>
-                                <?php foreach ($doc['attachments'] as $attachment): ?>
-                                    <tr class="attachment-row" data-parent-id="<?= $doc['id'] ?>">
-                                        <td class="col-checkbox">
-                                            <input type="checkbox" name="doc_ids[]" value="<?= $attachment['id'] ?>" class="doc-checkbox attachment-checkbox">
-                                        </td>
-                                        <td class="col-status">
-                                            <span class="status-dot" style="background-color: <?= $status_map[$attachment['status']]['color'] ?? '#6c757d' ?>;" title="<?= $status_map[$attachment['status']]['label'] ?? 'Inconnu' ?>"></span>
-                                        </td>
-                                        <td>
-                                            <i data-lucide="paperclip" style="width:16px; margin-right: 8px; color: #495057;"></i>
-                                            <?= htmlspecialchars($attachment['original_filename']) ?>
-                                        </td>
-                                        <td class="col-actions">
-                                            <div class="document-actions">
-                                                <form action="/document/update-status" method="POST">
-                                                    <input type="hidden" name="doc_id" value="<?= $attachment['id'] ?>">
-                                                    <select name="status" onchange="this.form.submit()" title="Changer le statut">
-                                                        <option value="received" <?= $attachment['status'] == 'received' ? 'selected' : '' ?>>Reçu</option>
-                                                        <option value="to_print" <?= $attachment['status'] == 'to_print' ? 'selected' : '' ?>>À imprimer</option>
-                                                        <option value="printed"  <?= $attachment['status'] == 'printed' ? 'selected' : '' ?>>Imprimé</option>
-                                                    </select>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
+                                <?php endif; ?>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
@@ -127,34 +114,12 @@
                     <?php endif; ?>
                 </tbody>
             </table>
-
-            <div style="margin-top: 1rem;">
-                <button type="submit" id="bulk-delete-button" class="button btn-delete">
-                    <i data-lucide="trash-2" style="width:16px; margin-right: 8px;"></i>
-                    Mettre la sélection à la corbeille
-                </button>
-            </div>
         </form>
     </div>
 
-    <div id="email-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modal-title"></h2>
-                <button id="modal-close-button" class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="modal-attachments">
-                    <h3>Pièces jointes</h3>
-                    <ul id="modal-attachments-list"></ul>
-                </div>
-                <div id="modal-preview">
-                    <h3>Aperçu de l'e-mail</h3>
-                    <iframe id="modal-preview-iframe" src="" frameborder="0"></iframe>
-                </div>
-            </div>
-        </div>
-    </div>
+    <div id="email-modal" class="modal-overlay" style="display:none;"> </div>
+    
+    <div id="toast-container"></div>
 
     <script src="/js/home.js"></script>
 </body>
