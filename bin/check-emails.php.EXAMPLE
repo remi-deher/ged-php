@@ -108,6 +108,13 @@ foreach ($tenants as $tenant) {
                         try {
                             echo "      -> Sauvegarde du corps de l'e-mail en HTML...\n";
                             $emailBodyHtml = $message->getBody()->getContent();
+                            
+                            // NOUVEAU: Vérifie si le corps de l'e-mail est vide
+                            if (trim(strip_tags($emailBodyHtml)) === '') {
+                                $emailBodyHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family: sans-serif; text-align: center; padding-top: 50px; color: #888;"><h1>Ce mail est vide.</h1></body></html>';
+                                echo "      -> Le corps du mail est vide, un message de remplacement sera utilisé.\n";
+                            }
+                            
                             $emailSubject = $message->getSubject() ?: 'Email sans sujet';
                             
                             $storedHtmlFilename = 'email_' . uniqid('', true) . '.html';
