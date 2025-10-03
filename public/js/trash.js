@@ -1,3 +1,5 @@
+// public/js/trash.js
+
 document.addEventListener('DOMContentLoaded', () => {
     const checkboxes = document.querySelectorAll('.trash-checkbox');
     const actionsContainer = document.getElementById('trash-actions');
@@ -21,10 +23,5 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             toggleActionButtons();
         });
-    }
-
-    // Pour l'intégration des icônes Lucide
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
     }
 });

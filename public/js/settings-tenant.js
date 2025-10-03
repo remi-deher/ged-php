@@ -1,18 +1,11 @@
 // public/js/settings-tenant.js
 
 document.addEventListener('DOMContentLoaded', () => {
-    const refreshIcons = () => {
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-    };
-    refreshIcons();
 
     // --- Gestion des Imprimantes ---
     const printerModal = document.getElementById('printer-modal');
-    const printerForm = document.getElementById('printer-form');
-    
     if (printerModal) {
+        const printerForm = document.getElementById('printer-form');
         document.getElementById('btn-show-printer-form').addEventListener('click', () => {
             printerForm.reset();
             document.getElementById('printer_id').value = '';
@@ -24,33 +17,25 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', async (e) => {
                 const button = e.currentTarget;
                 const printerId = button.dataset.printerId;
-                const icon = button.querySelector('i');
-                const originalIcon = icon.dataset.lucide;
+                const originalText = button.innerHTML;
 
-                icon.setAttribute('data-lucide', 'loader-circle');
-                refreshIcons();
+                button.innerHTML = '⏳'; // Spinner emoji
                 button.disabled = true;
                 
-                const formData = new FormData();
-                formData.append('printer_id', printerId);
-                
                 try {
-                    const response = await fetch('/settings/printer/test', { method: 'POST', body: formData });
+                    const response = await fetch('/settings/printer/test', { method: 'POST', body: new FormData(printerForm) });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'Erreur inconnue');
                     
-                    icon.setAttribute('data-lucide', 'check');
-                    refreshIcons();
+                    button.innerHTML = '✅';
                     alert('Succès : ' + data.message);
 
                 } catch (error) {
                     alert('Erreur : ' + error.message);
-                    icon.setAttribute('data-lucide', originalIcon); // Rétablir l'icône d'origine en cas d'erreur
-                    refreshIcons();
+                    button.innerHTML = originalText;
                 } finally {
                     setTimeout(() => {
-                        icon.setAttribute('data-lucide', originalIcon);
-                        refreshIcons();
+                        button.innerHTML = originalText;
                         button.disabled = false;
                     }, 3000);
                 }
@@ -58,24 +43,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
     // --- Gestion des Tenants et Comptes ---
     document.querySelectorAll('.tenant-header').forEach(header => {
         header.addEventListener('click', (e) => {
             if (e.target.closest('button')) return;
             const card = header.closest('.tenant-card');
-            const button = header.querySelector('.button-icon');
-            const icon = button.querySelector('i');
-            const text = button.querySelector('.btn-text');
+            const buttonText = header.querySelector('.btn-text');
             card.classList.toggle('is-open');
             if (card.classList.contains('is-open')) {
-                icon.setAttribute('data-lucide', 'chevron-up');
-                text.textContent = 'Fermer';
+                buttonText.textContent = 'Fermer ▲';
             } else {
-                icon.setAttribute('data-lucide', 'chevron-down');
-                text.textContent = 'Gérer';
+                buttonText.textContent = 'Gérer ▼';
             }
-            refreshIcons();
         });
     });
 
@@ -87,16 +66,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const openTenantModal = (tenant = null) => {
             document.getElementById('tenant-modal-title').innerText = tenant ? 'Gérer le Tenant' : 'Ajouter un nouveau Tenant';
+            // Les icônes sont remplacées par des émojis
             tenantForm.innerHTML = `
                 <input type="hidden" name="tenant_id" value="${tenant?.tenant_id || ''}">
-                <div class="form-group"><label>Nom du Tenant</label><div class="input-group"><i class="icon" data-lucide="building"></i><input type="text" name="tenant_name" value="${tenant?.tenant_name || ''}" required></div></div>
+                <div class="form-group"><label>Nom du Tenant</label><div class="input-group"><span>🏢</span><input style="padding-left: 30px;" type="text" name="tenant_name" value="${tenant?.tenant_name || ''}" required></div></div>
                 <h3>Paramètres Microsoft Graph</h3>
-                <div class="form-group"><label>ID du Tenant Microsoft</label><div class="input-group"><i class="icon" data-lucide="key-round"></i><input type="text" name="graph_tenant_id" value="${tenant?.graph?.tenant_id || ''}" required></div></div>
-                <div class="form-group"><label>ID du Client (Application)</label><div class="input-group"><i class="icon" data-lucide="app-window"></i><input type="text" name="graph_client_id" value="${tenant?.graph?.client_id || ''}" required></div></div>
-                <div class="form-group"><label>Secret Client</label><div class="input-group"><i class="icon" data-lucide="lock"></i><input type="password" name="graph_client_secret" placeholder="${tenant ? 'Laissez vide pour ne pas modifier' : ''}" autocomplete="new-password"></div></div>
-                <div class="form-actions">${tenant ? `<form action="/settings/tenant/delete" method="POST" onsubmit="return confirm('Supprimer ce tenant et tous ses comptes ?')"><input type="hidden" name="tenant_id" value="${tenant.tenant_id}"><button type="submit" class="button btn-delete">Supprimer</button></form>` : '<span></span>'}<button type="submit" class="button"><i data-lucide="save"></i> Enregistrer</button></div>
+                <div class="form-group"><label>ID du Tenant Microsoft</label><div class="input-group"><span>🔑</span><input style="padding-left: 30px;" type="text" name="graph_tenant_id" value="${tenant?.graph?.tenant_id || ''}" required></div></div>
+                <div class="form-group"><label>ID du Client (Application)</label><div class="input-group"><span>💻</span><input style="padding-left: 30px;" type="text" name="graph_client_id" value="${tenant?.graph?.client_id || ''}" required></div></div>
+                <div class="form-group"><label>Secret Client</label><div class="input-group"><span>🔒</span><input style="padding-left: 30px;" type="password" name="graph_client_secret" placeholder="${tenant ? 'Laissez vide pour ne pas modifier' : ''}" autocomplete="new-password"></div></div>
+                <div class="form-actions">${tenant ? `<form action="/settings/tenant/delete" method="POST" onsubmit="return confirm('Supprimer ce tenant et tous ses comptes ?')"><input type="hidden" name="tenant_id" value="${tenant.tenant_id}"><button type="submit" class="button button-delete">Supprimer</button></form>` : '<span></span>'}<button type="submit" class="button">💾 Enregistrer</button></div>
             `;
-            refreshIcons();
             tenantModal.style.display = 'flex';
         };
     }
@@ -110,7 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
             currentTenantIdForAccount = tenantId;
             document.getElementById('account-modal-title').innerText = account ? 'Modifier la boîte mail' : 'Ajouter une boîte mail';
 
-            // Créer les options pour le sélecteur d'imprimante
             let printerOptions = '<option value="">-- Imprimante par défaut --</option>';
             (window.printers || []).forEach(p => {
                 const isSelected = account?.default_printer_id === p.id ? 'selected' : '';
@@ -119,23 +97,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             accountForm.innerHTML = `
                 <input type="hidden" name="tenant_id" value="${tenantId}"><input type="hidden" name="account_id" value="${account?.id || ''}">
-                <div class="form-group"><label>Nom du compte</label><div class="input-group"><i class="icon" data-lucide="tag"></i><input type="text" id="account_name" name="account_name" value="${account?.account_name || ''}" required></div></div>
-                <div class="form-group"><label>Adresse e-mail</label><div class="input-group"><i class="icon" data-lucide="at-sign"></i><input type="email" id="user_email" name="user_email" value="${account?.user_email || ''}" required></div></div>
+                <div class="form-group"><label>Nom du compte</label><div class="input-group"><span>🏷️</span><input style="padding-left: 30px;" type="text" id="account_name" name="account_name" value="${account?.account_name || ''}" required></div></div>
+                <div class="form-group"><label>Adresse e-mail</label><div class="input-group"><span>@</span><input style="padding-left: 30px;" type="email" id="user_email" name="user_email" value="${account?.user_email || ''}" required></div></div>
                 <div class="form-group"><label>Imprimante par défaut pour ce compte</label><select name="default_printer_id">${printerOptions}</select></div>
                 <hr>
                 <div id="folder-selection-area">
                     <h3>Liaison des dossiers</h3>
-                    <button type="button" class="button" id="btn-list-folders"><span class="spinner"></span><i class="icon-main" data-lucide="plug-zap"></i><span class="btn-text">Lier les dossiers</span></button>
+                    <button type="button" class="button" id="btn-list-folders"><span class="spinner"></span><span class="btn-text">🔗 Lier les dossiers</span></button>
                     <div class="feedback-message" id="folder-message"></div>
                     <div class="folder-list" id="folder-list"></div>
                 </div>
                  <hr>
-                <div id="automation-rules-area"><h3><i data-lucide="bot"></i> Règles d'impression automatique</h3><div id="rules-list"></div><button type="button" class="button btn-secondary" id="btn-add-rule"><i data-lucide="plus"></i> Ajouter une règle</button></div>
-                <div class="form-actions">${account ? `<form action="/settings/account/delete" method="POST" onsubmit="return confirm('Supprimer ce compte ?')"><input type="hidden" name="tenant_id" value="${tenantId}"><input type="hidden" name="account_id" value="${account.id}"><button type="submit" class="button btn-delete">Supprimer</button></form>` : '<span></span>'}<button type="submit" class="button" id="btn-save-account"><i data-lucide="save"></i> Enregistrer</button></div>
+                <div id="automation-rules-area"><h3>🤖 Règles d'impression automatique</h3><div id="rules-list"></div><button type="button" class="button button-secondary" id="btn-add-rule">➕ Ajouter une règle</button></div>
+                <div class="form-actions">${account ? `<form action="/settings/account/delete" method="POST" onsubmit="return confirm('Supprimer ce compte ?')"><input type="hidden" name="tenant_id" value="${tenantId}"><input type="hidden" name="account_id" value="${account.id}"><button type="submit" class="button button-delete">Supprimer</button></form>` : '<span></span>'}<button type="submit" class="button" id="btn-save-account">💾 Enregistrer</button></div>
             `;
             if (account?.folders?.length) renderFolderList(account.folders, account.folders);
             if (account?.automation_rules?.length) renderAutomationRules(account.automation_rules);
-            refreshIcons();
             accountModal.style.display = 'flex';
             document.getElementById('btn-list-folders').addEventListener('click', () => listFolders(account?.folders || []));
             document.getElementById('btn-add-rule').addEventListener('click', () => addRule());
@@ -169,16 +146,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const container = document.getElementById('folder-list');
             if (foldersFromApi.length === 0) { container.innerHTML = '<p style="text-align:center; color:#6c757d;">Aucun dossier retourné par l\'API.</p>'; return; }
             
-            // Options pour les dossiers de destination
             let destFolderOptions = '<option value="root">Racine de l\'application</option>';
             window.appFolders.forEach(f => { destFolderOptions += `<option value="${f.id}">${f.name}</option>`; });
             destFolderOptions += '<option value="new_folder">--- Créer un nouveau dossier ---</option>';
 
-            // Options pour les imprimantes
             let printerOptions = '<option value="">-- Imprimante par défaut --</option>';
             (window.printers || []).forEach(p => { printerOptions += `<option value="${p.id}">${p.name}</option>`; });
 
-            let tableHtml = `<table class="folder-table"><thead><tr><th class="col-checkbox"><input type="checkbox" id="select-all-folders"></th><th>Dossier (Boîte Mail)</th><th>Dossier de Destination (GED)</th><th>Imprimante du dossier</th></tr></thead><tbody>`;
+            let tableHtml = `<table class="table"><thead><tr><th class="col-checkbox"><input type="checkbox" id="select-all-folders"></th><th>Dossier (Boîte Mail)</th><th>Dossier de Destination (GED)</th><th>Imprimante du dossier</th></tr></thead><tbody>`;
             foldersFromApi.forEach(folder => {
                 const mapping = selectedMappings.find(m => m.id === folder.id);
                 const isChecked = mapping ? 'checked' : '';
@@ -193,7 +168,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             container.innerHTML = tableHtml + `</tbody></table>`;
             
-            // Pré-sélectionner les valeurs
             container.querySelectorAll('tbody tr').forEach(row => {
                 const mapping = selectedMappings.find(m => m.id === row.dataset.folderId);
                 if (mapping) {
@@ -212,7 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }));
             container.querySelectorAll('.destination-folder-select').forEach(sel => sel.addEventListener('change', (e) => {
                 handleFolderCreation(e);
-                // Mettre à jour le nom de l'input pour l'imprimante
                 const row = e.target.closest('tr');
                 const printerSelect = row.querySelector('.folder-printer-select');
                 printerSelect.name = `folder_printers[${e.target.value}]`;
@@ -230,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch('/settings/ajax/create-folder', { method: 'POST', body: fd });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
-                const newOpt = new Option(data.name, data.id, false, true); // Create, select new option
+                const newOpt = new Option(data.name, data.id, false, true);
                 window.appFolders.push({ id: data.id, name: data.name, default_printer_id: null });
                 document.querySelectorAll('.destination-folder-select').forEach(s => {
                     const clonedOpt = newOpt.cloneNode(true);
@@ -256,8 +229,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ruleDiv.className = 'automation-rule';
             ruleDiv.dataset.ruleId = ruleId;
             ruleDiv.innerHTML = `
-                <div class="rule-header"><input type="text" class="rule-name" value="${rule?.rule_name || ''}" placeholder="Nom de la règle"><button type="button" class="button-icon btn-delete btn-remove-rule"><i data-lucide="trash-2"></i></button></div>
-                <div class="rule-body"><div class="rule-conditions"></div><div class="rule-actions"><span><strong>Alors :</strong> Imprimer</span><select class="rule-action-print"><option value="attachments" ${rule?.action_print === 'attachments' ? 'selected' : ''}>les pièces jointes</option><option value="body" ${rule?.action_print === 'body' ? 'selected' : ''}>le corps de l'e-mail</option><option value="all" ${rule?.action_print === 'all' ? 'selected' : ''}>les deux</option></select></div><button type="button" class="btn-add-condition"><i data-lucide="plus-circle"></i> Ajouter une condition</button></div>
+                <div class="rule-header"><input type="text" class="rule-name" value="${rule?.rule_name || ''}" placeholder="Nom de la règle"><button type="button" class="button-icon button-delete btn-remove-rule">🗑️</button></div>
+                <div class="rule-body"><div class="rule-conditions"></div><div class="rule-actions"><span><strong>Alors :</strong> Imprimer</span><select class="rule-action-print"><option value="attachments" ${rule?.action_print === 'attachments' ? 'selected' : ''}>les pièces jointes</option><option value="body" ${rule?.action_print === 'body' ? 'selected' : ''}>le corps de l'e-mail</option><option value="all" ${rule?.action_print === 'all' ? 'selected' : ''}>les deux</option></select></div><button type="button" class="btn-add-condition">➕ Ajouter une condition</button></div>
             `;
             document.getElementById('rules-list').appendChild(ruleDiv);
             const condContainer = ruleDiv.querySelector('.rule-conditions');
@@ -268,7 +241,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             ruleDiv.querySelector('.btn-remove-rule').addEventListener('click', () => ruleDiv.remove());
             ruleDiv.querySelector('.btn-add-condition').addEventListener('click', (e) => addCondition(condContainer));
-            refreshIcons();
         };
 
         const addCondition = (container, condition = null) => {
@@ -277,19 +249,16 @@ document.addEventListener('DOMContentLoaded', () => {
             condDiv.innerHTML = `
                 <span><strong>Si :</strong></span><select class="rule-cond-field"><option value="from" ${condition?.field === 'from' ? 'selected' : ''}>l'expéditeur</option><option value="subject" ${condition?.field === 'subject' ? 'selected' : ''}>l'objet</option></select>
                 <select class="rule-cond-operator"><option value="contains" ${condition?.operator === 'contains' ? 'selected' : ''}>contient</option><option value="equals" ${condition?.operator === 'equals' ? 'selected' : ''}>est égal à</option></select>
-                <input type="text" class="rule-cond-value" value="${condition?.value || ''}" placeholder="valeur..."><button type="button" class="button-icon btn-delete btn-remove-condition"><i data-lucide="x"></i></button>
+                <input type="text" class="rule-cond-value" value="${condition?.value || ''}" placeholder="valeur..."><button type="button" class="button-icon button-delete btn-remove-condition">❌</button>
             `;
             container.appendChild(condDiv);
             condDiv.querySelector('.btn-remove-condition').addEventListener('click', () => condDiv.remove());
-            refreshIcons();
         };
 
         const prepareFormForSubmit = (e) => {
-            // Nettoyer les anciens inputs cachés
             accountForm.querySelectorAll('input[name="folders[]"], input[name^="folder_printers"], input[name="automation_rules"]').forEach(el => el.remove());
             
-            // Dossiers mappés
-            document.querySelectorAll('.folder-table tbody tr').forEach(row => {
+            document.querySelectorAll('.table tbody tr').forEach(row => {
                 if (row.querySelector('.folder-checkbox:checked')) {
                     const mapping = { 
                         id: row.dataset.folderId, 
@@ -304,7 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Imprimantes par dossier
             document.querySelectorAll('.folder-printer-select').forEach(select => {
                 if (select.name && select.value && !select.disabled) {
                     const input = document.createElement('input');
@@ -315,7 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Règles d'automatisation
             const rules = [];
             document.querySelectorAll('.automation-rule').forEach(ruleDiv => {
                 const rule = { rule_id: ruleDiv.dataset.ruleId, rule_name: ruleDiv.querySelector('.rule-name').value, action_print: ruleDiv.querySelector('.rule-action-print').value, conditions: [] };

@@ -1,0 +1,188 @@
+/* ==========================================================================
+   Page Styles - Settings
+   ========================================================================== */
+
+.settings-container {
+    max-width: 800px;
+    margin: auto;
+}
+
+.settings-block {
+    background-color: var(--light-gray-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.settings-block h1 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.5rem;
+    margin-top: 0;
+}
+
+.tenant-card {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.3s ease;
+}
+
+.tenant-card:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.tenant-header {
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.tenant-card.is-open .tenant-header {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tenant-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.tenant-name {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.tenant-accounts-container {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.5s ease-out, padding 0.5s ease-out;
+    padding: 0 1rem;
+}
+
+.tenant-card.is-open .tenant-accounts-container {
+    max-height: 1000px; /* Adjust if content is taller */
+    transition: max-height 0.5s ease-in;
+    padding: 1rem;
+}
+
+.tenant-settings-actions {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px dashed #ddd;
+    text-align: right;
+}
+
+.tenant-accounts-list {
+    background-color: var(--light-gray-bg);
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+
+.account-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    background-color: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.account-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #555;
+}
+
+.no-accounts-message {
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.add-account-container {
+    padding-top: 1rem;
+    text-align: center;
+}
+
+/* --- Automation Rules specific to settings page --- */
+#automation-rules-area {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+#automation-rules-area h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.automation-rule {
+    background-color: var(--light-gray-bg);
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.rule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.rule-name {
+    flex-grow: 1;
+    font-weight: bold;
+    border: none;
+    background: none;
+    font-size: 1rem;
+}
+
+.rule-name:focus {
+    outline: none;
+    background-color: #fff;
+}
+
+.rule-body {
+    padding-left: 1rem;
+    border-left: 3px solid var(--primary-color);
+}
+
+.rule-condition {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0.5rem;
+}
+
+.rule-condition select,
+.rule-condition input {
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+
+.rule-actions {
+    margin: 1rem 0;
+}
+
+.rule-actions select {
+    display: inline-block;
+    width: auto;
+    margin-left: 10px;
+}
