@@ -9,8 +9,6 @@ chdir(dirname(__DIR__));
 require_once 'vendor/autoload.php';
 
 use App\Core\Database;
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use Microsoft\Graph\GraphServiceClient;
 use Microsoft\Graph\Generated\Models;
 use Microsoft\Graph\Generated\Users\Item\MailFolders\Item\Messages\MessagesRequestBuilderGetRequestConfiguration;
@@ -21,14 +19,13 @@ use WebSocket\Client as WebSocketClient;
 // --- CHARGEMENT DE LA CONFIGURATION ---
 $settingsFile = dirname(__DIR__) . '/config/mail_settings.json';
 if (!file_exists($settingsFile)) {
-    die("Fichier de configuration 'mail_settings.json' non trouvé. Veuillez configurer la messagerie depuis l'interface.\n");
+    die("Fichier de configuration 'mail_settings.json' non trouvé.\n");
 }
 
-$settingsJson = file_get_contents($settingsFile);
-$accounts = json_decode($settingsJson, true);
+$tenants = json_decode(file_get_contents($settingsFile), true);
 
-if (!is_array($accounts) || empty($accounts)) {
-    die("Fichier de configuration 'mail_settings.json' est vide ou mal formaté. Veuillez configurer un compte depuis l'interface.\n");
+if (!is_array($tenants) || empty($tenants)) {
+    die("Fichier de configuration 'mail_settings.json' est vide ou mal formaté.\n");
 }
 
 // --- TEST INITIAL DE LA CONNEXION BDD ---
@@ -37,142 +34,149 @@ try {
     echo "DEBUG: Connexion à la base de données réussie.\n";
 } catch (\PDOException $e) {
     echo "--- ERREUR FATALE DE BASE DE DONNÉES ---\n";
-    die("Impossible de se connecter à la base de données. Vérifiez vos identifiants dans 'src/Core/Database.php'. Erreur : " . $e->getMessage() . "\n");
+    die("Impossible de se connecter à la base de données : " . $e->getMessage() . "\n");
 }
 
-// --- BOUCLE SUR CHAQUE COMPTE CONFIGURÉ ---
-foreach ($accounts as $account) {
+// --- BOUCLE SUR CHAQUE TENANT ---
+foreach ($tenants as $tenant) {
     echo "\n==========================================================\n";
-    echo "Traitement du compte : " . ($account['account_name'] ?? 'Compte sans nom') . "\n";
+    echo "Traitement du Tenant : " . ($tenant['tenant_name'] ?? 'Tenant sans nom') . "\n";
     echo "==========================================================\n";
 
-    // Vérification de la configuration pour ce compte
-    if (($account['service'] ?? '') !== 'graph' || empty($account['graph']['tenant_id']) || empty($account['graph']['client_id']) || empty($account['graph']['client_secret']) || empty($account['graph']['user_email'])) {
-        echo "ATTENTION: La configuration pour ce compte est incomplète. Passage au compte suivant.\n";
+    if (empty($tenant['graph']['tenant_id']) || empty($tenant['graph']['client_id']) || empty($tenant['graph']['client_secret'])) {
+        echo "ATTENTION: La configuration Graph pour ce tenant est incomplète. Passage au tenant suivant.\n";
         continue;
     }
-    if (empty($account['folders'])) {
-        echo "INFO: Aucun dossier n'a été sélectionné pour la synchronisation sur ce compte. Passage au compte suivant.\n";
+    if (empty($tenant['accounts'])) {
+        echo "INFO: Aucun compte (boîte mail) configuré pour ce tenant. Passage au tenant suivant.\n";
         continue;
     }
-
-    $graphSettings = $account['graph'];
-    $foldersToSync = $account['folders'];
 
     try {
-        // --- AUTHENTIFICATION ET INITIALISATION ---
+        // --- AUTHENTIFICATION ET INITIALISATION PAR TENANT ---
         $tokenRequestContext = new ClientCredentialContext(
-            $graphSettings['tenant_id'],
-            $graphSettings['client_id'],
-            $graphSettings['client_secret']
+            $tenant['graph']['tenant_id'],
+            $tenant['graph']['client_id'],
+            $tenant['graph']['client_secret']
         );
         $graph = new GraphServiceClient($tokenRequestContext);
-        echo "DEBUG: Client Graph initialisé avec succès pour " . $graphSettings['user_email'] . ".\n";
+        echo "DEBUG: Client Graph initialisé avec succès pour le tenant '" . $tenant['tenant_name'] . "'.\n";
 
-        // --- BOUCLE SUR LES DOSSIERS SÉLECTIONNÉS ---
-        foreach ($foldersToSync as $folderId) {
-            echo "\nSynchronisation du dossier ID: $folderId...\n";
+        // --- BOUCLE SUR CHAQUE COMPTE (BOÎTE MAIL) DU TENANT ---
+        foreach ($tenant['accounts'] as $account) {
+            echo "\n----------------------------------------------------------\n";
+            echo "  Traitement du compte : " . ($account['account_name'] ?? 'Compte sans nom') . " (" . $account['user_email'] . ")\n";
+            echo "----------------------------------------------------------\n";
 
-            $requestConfiguration = new MessagesRequestBuilderGetRequestConfiguration();
-            $requestConfiguration->queryParameters = new \Microsoft\Graph\Generated\Users\Item\MailFolders\Item\Messages\MessagesRequestBuilderGetQueryParameters();
-            $requestConfiguration->queryParameters->filter = 'isRead eq false';
-            $requestConfiguration->queryParameters->expand = ['attachments'];
-            $requestConfiguration->queryParameters->orderby = ['receivedDateTime asc'];
-            $requestConfiguration->queryParameters->top = 25;
-
-            $messages = $graph->users()->byUserId($graphSettings['user_email'])->mailFolders()->byMailFolderId($folderId)->messages()->get($requestConfiguration)->wait();
-            $messageCollection = $messages->getValue();
-            echo "-> " . count($messageCollection) . " message(s) non lu(s) trouvé(s) dans ce dossier.\n";
-            
-            if (empty($messageCollection)) {
-                continue; // Passe au dossier suivant
+            if (empty($account['user_email'])) {
+                echo "  ATTENTION: L'adresse e-mail pour ce compte est manquante. Passage au compte suivant.\n";
+                continue;
             }
+            if (empty($account['folders'])) {
+                echo "  INFO: Aucun dossier n'a été sélectionné pour la synchronisation sur ce compte. Passage au compte suivant.\n";
+                continue;
+            }
+            
+            $foldersToSync = $account['folders'];
 
-            foreach ($messageCollection as $message) {
-                echo "\n  Traitement du message : '" . $message->getSubject() . "'\n";
-                $parentDocumentId = null;
+            // --- BOUCLE SUR LES DOSSIERS SÉLECTIONNÉS ---
+            foreach ($foldersToSync as $folderMapping) {
+                $folderId = $folderMapping['id'];
+                echo "\n  Synchronisation du dossier ID: $folderId...\n";
+                
+                $requestConfiguration = new MessagesRequestBuilderGetRequestConfiguration();
+                $requestConfiguration->queryParameters = new \Microsoft\Graph\Generated\Users\Item\MailFolders\Item\Messages\MessagesRequestBuilderGetQueryParameters();
+                $requestConfiguration->queryParameters->filter = 'isRead eq false';
+                $requestConfiguration->queryParameters->expand = ['attachments'];
+                $requestConfiguration->queryParameters->orderby = ['receivedDateTime asc'];
+                $requestConfiguration->queryParameters->top = 25;
 
-                // --- 1. Sauvegarder le corps de l'e-mail en PDF ---
-                if ($message->getBody() && $message->getBody()->getContentType()->value() === 'html') {
-                    try {
-                        echo "    -> Conversion du corps de l'e-mail en PDF...\n";
-                        $emailBodyHtml = $message->getBody()->getContent();
-                        
-                        $options = new Options();
-                        $options->set('isHtml5ParserEnabled', true);
-                        $dompdf = new Dompdf($options);
-                        $dompdf->loadHtml($emailBodyHtml);
-                        $dompdf->setPaper('A4', 'portrait');
-                        $dompdf->render();
-                        $pdfOutput = $dompdf->output();
-                        
-                        $emailSubject = $message->getSubject() ?: 'Email sans sujet';
-                        $storedPdfFilename = 'email_' . uniqid('', true) . '.pdf';
-                        $fullPdfPath = dirname(__DIR__) . '/storage/' . $storedPdfFilename;
-                        file_put_contents($fullPdfPath, $pdfOutput);
-                        echo "    -> Fichier PDF sauvegardé : $storedPdfFilename\n";
-
-                        echo "    -> Insertion du PDF dans la BDD...\n";
-                        $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, created_at, updated_at) 
-                                VALUES (?, ?, ?, 'application/pdf', ?, 'received', NOW(), NOW())";
-                        $stmt = $pdo->prepare($sql);
-                        $stmt->execute([$emailSubject . '.pdf', $storedPdfFilename, 'storage/', strlen($pdfOutput)]);
-                        $parentDocumentId = $pdo->lastInsertId();
-                        echo "    -> SUCCÈS: PDF enregistré en BDD avec l'ID: $parentDocumentId.\n";
-                        notifyWebSocket($emailSubject . '.pdf');
-
-                    } catch (\PDOException $e) {
-                        echo "    -> ERREUR BDD (Email): " . $e->getMessage() . "\n";
-                        error_log("CRON ERREUR BDD (Email): " . $e->getMessage());
-                    } catch (Exception $e) {
-                        echo "    -> ERREUR (Email): " . $e->getMessage() . "\n";
-                        error_log("CRON ERREUR (Email): " . $e->getMessage());
-                    }
+                $messages = $graph->users()->byUserId($account['user_email'])->mailFolders()->byMailFolderId($folderId)->messages()->get($requestConfiguration)->wait();
+                $messageCollection = $messages->getValue();
+                echo "  -> " . count($messageCollection) . " message(s) non lu(s) trouvé(s) dans ce dossier.\n";
+                
+                if (empty($messageCollection)) {
+                    continue; // Passe au dossier suivant
                 }
 
-                // --- 2. Traiter les pièces jointes ---
-                if ($message->getHasAttachments()) {
-                    $attachments = $message->getAttachments();
-                    foreach ($attachments as $attachment) {
-                        if ($attachment instanceof Models\FileAttachment) {
-                            echo "    -> Pièce jointe trouvée : " . $attachment->getName() . "\n";
-                            try {
-                                $originalFilename = $attachment->getName();
-                                $storedFilename = 'doc_' . uniqid('', true) . '.' . pathinfo($originalFilename, PATHINFO_EXTENSION);
-                                $fullStoragePath = dirname(__DIR__) . '/storage/' . $storedFilename;
-                                file_put_contents($fullStoragePath, base64_decode($attachment->getContentBytes()));
-                                echo "    -> Fichier PJ sauvegardé : $storedFilename\n";
+                foreach ($messageCollection as $message) {
+                    echo "\n    Traitement du message : '" . $message->getSubject() . "'\n";
+                    $parentDocumentId = null;
 
-                                echo "    -> Insertion de la PJ dans la BDD...\n";
-                                $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, parent_document_id, created_at, updated_at) 
-                                        VALUES (?, ?, ?, ?, ?, 'received', ?, NOW(), NOW())";
-                                $stmt = $pdo->prepare($sql);
-                                $stmt->execute([$originalFilename, $storedFilename, 'storage/', $attachment->getContentType(), $attachment->getSize(), $parentDocumentId]);
-                                $attachmentId = $pdo->lastInsertId();
-                                echo "    -> SUCCÈS: PJ enregistrée en BDD avec l'ID: $attachmentId.\n";
-                                notifyWebSocket($originalFilename);
+                    // --- 1. Sauvegarder le corps de l'e-mail en HTML ---
+                    if ($message->getBody() && $message->getBody()->getContentType()->value() === 'html') {
+                        try {
+                            echo "      -> Sauvegarde du corps de l'e-mail en HTML...\n";
+                            $emailBodyHtml = $message->getBody()->getContent();
+                            $emailSubject = $message->getSubject() ?: 'Email sans sujet';
+                            
+                            $storedHtmlFilename = 'email_' . uniqid('', true) . '.html';
+                            $fullHtmlPath = dirname(__DIR__) . '/storage/' . $storedHtmlFilename;
+                            file_put_contents($fullHtmlPath, $emailBodyHtml);
+                            echo "      -> Fichier HTML sauvegardé : $storedHtmlFilename\n";
 
-                            } catch (\PDOException $e) {
-                                echo "    -> ERREUR BDD (PJ): " . $e->getMessage() . "\n";
-                                error_log("CRON ERREUR BDD (PJ): " . $e->getMessage());
-                            } catch (Exception $e) {
-                                echo "    -> ERREUR (PJ): " . $e->getMessage() . "\n";
-                                error_log("CRON ERREUR (PJ): " . $e->getMessage());
+                            echo "      -> Insertion du HTML dans la BDD...\n";
+                            $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, source_account_id, created_at, updated_at) 
+                                    VALUES (?, ?, ?, 'text/html', ?, 'received', ?, NOW(), NOW())";
+                            $stmt = $pdo->prepare($sql);
+                            $stmt->execute([$emailSubject . '.html', $storedHtmlFilename, 'storage/', strlen($emailBodyHtml), $account['id']]);
+                            $parentDocumentId = $pdo->lastInsertId();
+                            echo "      -> SUCCÈS: E-mail enregistré en BDD avec l'ID: $parentDocumentId.\n";
+                            notifyWebSocket($emailSubject . '.html');
+
+                        } catch (\PDOException $e) {
+                            echo "      -> ERREUR BDD (Email): " . $e->getMessage() . "\n";
+                            error_log("CRON ERREUR BDD (Email): " . $e->getMessage());
+                        } catch (\Exception $e) {
+                            echo "      -> ERREUR (Email): " . $e->getMessage() . "\n";
+                            error_log("CRON ERREUR (Email): " . $e->getMessage());
+                        }
+                    }
+
+                    // --- 2. Traiter les pièces jointes ---
+                    if ($message->getHasAttachments()) {
+                        $attachments = $message->getAttachments();
+                        foreach ($attachments as $attachment) {
+                            if ($attachment instanceof Models\FileAttachment) {
+                                echo "      -> Pièce jointe trouvée : " . $attachment->getName() . "\n";
+                                try {
+                                    $originalFilename = $attachment->getName();
+                                    $storedFilename = 'doc_' . uniqid('', true) . '.' . pathinfo($originalFilename, PATHINFO_EXTENSION);
+                                    $fullStoragePath = dirname(__DIR__) . '/storage/' . $storedFilename;
+                                    file_put_contents($fullStoragePath, base64_decode($attachment->getContentBytes()));
+                                    echo "      -> Fichier PJ sauvegardé : $storedFilename\n";
+
+                                    echo "      -> Insertion de la PJ dans la BDD...\n";
+                                    $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, parent_document_id, source_account_id, created_at, updated_at) 
+                                            VALUES (?, ?, ?, ?, ?, 'received', ?, ?, NOW(), NOW())";
+                                    $stmt = $pdo->prepare($sql);
+                                    $stmt->execute([$originalFilename, $storedFilename, 'storage/', $attachment->getContentType(), $attachment->getSize(), $parentDocumentId, $account['id']]);
+                                    $attachmentId = $pdo->lastInsertId();
+                                    echo "      -> SUCCÈS: PJ enregistrée en BDD avec l'ID: $attachmentId.\n";
+                                    notifyWebSocket($originalFilename);
+
+                                } catch (\PDOException $e) {
+                                    echo "      -> ERREUR BDD (PJ): " . $e->getMessage() . "\n";
+                                    error_log("CRON ERREUR BDD (PJ): " . $e->getMessage());
+                                } catch (\Exception $e) {
+                                    echo "      -> ERREUR (PJ): " . $e->getMessage() . "\n";
+                                    error_log("CRON ERREUR (PJ): " . $e->getMessage());
+                                }
                             }
                         }
                     }
-                }
 
-                // --- 3. Marquer le message comme lu ---
-                echo "    -> Marquage du message comme lu...\n";
-                $updatePayload = new Models\Message();
-                $updatePayload->setIsRead(true);
-                $graph->users()->byUserId($graphSettings['user_email'])->messages()->byMessageId($message->getId())->patch($updatePayload)->wait();
-                echo "    -> Message marqué comme lu.\n";
+                    // --- 3. Marquer le message comme lu ---
+                    echo "    -> Marquage du message comme lu...\n";
+                    $updatePayload = new Models\Message();
+                    $updatePayload->setIsRead(true);
+                    $graph->users()->byUserId($account['user_email'])->messages()->byMessageId($message->getId())->patch($updatePayload)->wait();
+                    echo "    -> Message marqué comme lu.\n";
+                }
             }
         }
     } catch (ApiException $e) {
-        echo "\n--- ERREUR API GRAPH POUR LE COMPTE " . ($graphSettings['user_email'] ?? '') . " ---\n";
+        echo "\n--- ERREUR API GRAPH POUR LE TENANT " . ($tenant['tenant_name'] ?? '') . " ---\n";
         echo "Code HTTP: " . $e->getCode() . "\n";
         echo "Message d'erreur principal: " . $e->getMessage() . "\n\n";
         if (method_exists($e, 'getError')) {
@@ -181,8 +185,8 @@ foreach ($accounts as $account) {
                  echo "Détail de l'erreur Azure: " . $error->getMessage() . "\n";
             }
         }
-    } catch (Exception $e) {
-        echo "\n--- ERREUR GÉNÉRALE INATTENDUE POUR LE COMPTE " . ($graphSettings['user_email'] ?? '') . " ---\n";
+    } catch (\Exception $e) {
+        echo "\n--- ERREUR GÉNÉRALE INATTENDUE POUR LE TENANT " . ($tenant['tenant_name'] ?? '') . " ---\n";
         echo "Message: " . $e->getMessage() . "\n";
     }
 }

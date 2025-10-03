@@ -17,6 +17,7 @@ function formatSizeUnits($bytes) {
 }
 
 function getFileIcon($mimeType) {
+    if (str_contains($mimeType, 'html')) return '📧'; // NOUVEAU: Icône pour les e-mails
     if (str_contains($mimeType, 'pdf')) return '📄';
     if (str_contains($mimeType, 'image')) return '🖼️';
     if (str_contains($mimeType, 'word')) return '📝';
