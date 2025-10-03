@@ -8,13 +8,8 @@ use App\Services\FileUploaderService;
 use PDO;
 use WebSocket\Client as WebSocketClient;
 
-// Classes pour la bibliothèque d'impression digitalrevolution/ipp
-use DR\Ipp\Ipp;
-use DR\Ipp\Entity\IppServer;
-use DR\Ipp\Entity\IppPrinter;
-use DR\Ipp\Entity\IppPrintFile;
+// Classe non utilisée pour l'impression mais gardée pour la compatibilité
 use DR\Ipp\Enum\FileTypeEnum;
-use GuzzleHttp\Client as GuzzleClient;
 
 class DocumentController
 {
@@ -23,6 +18,8 @@ class DocumentController
         $pdo = Database::getInstance();
         $currentFolderId = isset($_GET['folder_id']) ? (int)$_GET['folder_id'] : null;
         $currentFolder = null;
+
+        $initialPrintQueue = $this->getInitialPrintQueue();
 
         if ($currentFolderId) {
             $folderStmt = $pdo->prepare('SELECT id, name FROM folders WHERE id = ?');
@@ -57,6 +54,90 @@ class DocumentController
             }
         }
         require_once dirname(__DIR__, 2) . '/templates/home.php';
+    }
+
+    public function getPrintQueueStatus(): void
+    {
+        header('Content-Type: application/json');
+        try {
+            $pdo = Database::getInstance();
+            $stmt = $pdo->query("SELECT id, original_filename, print_job_id, print_error_message, status FROM documents WHERE status = 'to_print' OR status = 'print_error'");
+            $printingDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($printingDocs)) {
+                echo json_encode([]);
+                exit();
+            }
+
+            $cupsJobsOutput = @shell_exec('lpstat -o 2>&1');
+            $activeJobs = [];
+            if (!empty($cupsJobsOutput)) {
+                $lines = explode("\n", trim($cupsJobsOutput));
+                foreach ($lines as $line) {
+                    if (empty(trim($line))) continue;
+                    $parts = preg_split('/\s+/', $line);
+                    if (isset($parts[0])) {
+                        $jobIdParts = explode('-', $parts[0]);
+                        $jobId = end($jobIdParts);
+                        if (is_numeric($jobId)) {
+                            $activeJobs[$jobId] = ['status' => 'pending/printing', 'full_line' => $line];
+                        }
+                    }
+                }
+            }
+            $printerStatusOutput = @shell_exec('lpstat -p 2>&1');
+            $printerErrors = [];
+            if (!empty($printerStatusOutput)) {
+                $lines = explode("\n", trim($printerStatusOutput));
+                foreach ($lines as $line) {
+                    if (stripos($line, 'disabled') !== false || stripos($line, 'Paused') !== false || stripos($line, 'stopped') !== false) {
+                        $parts = preg_split('/\s+/', $line);
+                        $printerName = $parts[1] ?? 'unknown';
+                        $printerErrors[] = "L'imprimante '$printerName' semble en pause ou arrêtée.";
+                    }
+                }
+            }
+            $globalError = empty($printerErrors) ? null : implode(' ', $printerErrors);
+
+            $queueStatus = [];
+            foreach ($printingDocs as $doc) {
+                $jobId = $doc['print_job_id'];
+                $status = 'Terminé';
+                $error = $globalError;
+
+                if ($jobId && isset($activeJobs[$jobId])) {
+                    $status = 'En cours d\'impression';
+                } elseif ($doc['status'] !== 'print_error') {
+                    $pdo->prepare("UPDATE documents SET status = 'printed' WHERE id = ?")->execute([$doc['id']]);
+                }
+
+                if ($doc['status'] === 'print_error') {
+                    $status = 'Erreur';
+                    $error = $doc['print_error_message'];
+                }
+
+                $queueStatus[] = [
+                    'id' => $doc['id'],
+                    'filename' => $doc['original_filename'],
+                    'status' => $status,
+                    'error' => $error,
+                    'job_id' => $jobId
+                ];
+            }
+            echo json_encode($queueStatus);
+        } catch (\Throwable $e) {
+            error_log("Erreur dans getPrintQueueStatus: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Erreur interne du serveur.', 'message' => $e->getMessage()]);
+        }
+        exit();
+    }
+    
+    private function getInitialPrintQueue(): array
+    {
+        $pdo = Database::getInstance();
+        $stmt = $pdo->query("SELECT id, original_filename, print_job_id, status FROM documents WHERE status = 'to_print' AND print_job_id IS NOT NULL");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     public function uploadDocument(): void
@@ -126,7 +207,7 @@ class DocumentController
         if (!isset($_POST['doc_id']) || !isset($_POST['status'])) die("Données manquantes.");
         $docId = (int)$_POST['doc_id'];
         $newStatus = $_POST['status'];
-        $allowedStatus = ['received', 'to_print', 'printed'];
+        $allowedStatus = ['received', 'to_print', 'printed', 'print_error'];
         if (!in_array($newStatus, $allowedStatus)) die("Statut non valide.");
         
         try {
@@ -163,44 +244,30 @@ class DocumentController
         exit();
     }
 
-    private function getFileTypeEnumFromMimeType(?string $mimeType): FileTypeEnum
-    {
-        return match ($mimeType) {
-            'application/pdf' => FileTypeEnum::PDF,
-            'application/postscript' => FileTypeEnum::PS,
-            'image/jpeg' => FileTypeEnum::JPG,
-            'image/png' => FileTypeEnum::PNG,
-            'application/vnd.hp-PCL' => FileTypeEnum::PCL,
-            default => FileTypeEnum::ZPL, // Octet-stream fallback for text/plain etc.
-        };
-    }
-
     private function sendToPrinter(int $docId): void
     {
+        $pdo = Database::getInstance();
         try {
-            $pdo = Database::getInstance();
             $printSettingsFile = dirname(__DIR__, 2) . '/config/print_settings.json';
             if (!file_exists($printSettingsFile)) throw new \Exception("Fichier de configuration d'impression manquant.");
             $printers = json_decode(file_get_contents($printSettingsFile), true);
             if (empty($printers)) throw new \Exception("Aucune imprimante configurée.");
 
-            $stmt = $pdo->prepare("SELECT d.original_filename, d.stored_filename, d.mime_type, d.folder_id, d.source_account_id, f.default_printer_id as folder_printer_id FROM documents d LEFT JOIN folders f ON d.folder_id = f.id WHERE d.id = ? AND d.deleted_at IS NULL");
+            $stmt = $pdo->prepare("SELECT d.original_filename, d.stored_filename, d.folder_id, d.source_account_id, f.default_printer_id as folder_printer_id FROM documents d LEFT JOIN folders f ON d.folder_id = f.id WHERE d.id = ? AND d.deleted_at IS NULL");
             $stmt->execute([$docId]);
             $document = $stmt->fetch();
             if (!$document) throw new \Exception("Document ID $docId non trouvé.");
+            
+            $pdo->prepare("UPDATE documents SET status = 'to_print', print_error_message = NULL WHERE id = ?")->execute([$docId]);
 
             $printerIdToUse = null;
-
-            if ($document['folder_printer_id']) {
-                $printerIdToUse = $document['folder_printer_id'];
-            }
+            if ($document['folder_printer_id']) $printerIdToUse = $document['folder_printer_id'];
             elseif ($document['source_account_id']) {
                 $mailSettings = json_decode(file_get_contents(dirname(__DIR__, 2) . '/config/mail_settings.json'), true);
                 foreach ($mailSettings as $tenant) {
                     foreach ($tenant['accounts'] as $account) {
                         if ($account['id'] === $document['source_account_id'] && !empty($account['default_printer_id'])) {
-                            $printerIdToUse = $account['default_printer_id'];
-                            break 2;
+                            $printerIdToUse = $account['default_printer_id']; break 2;
                         }
                     }
                 }
@@ -208,58 +275,42 @@ class DocumentController
 
             $printerConfig = null;
             if ($printerIdToUse) {
-                foreach ($printers as $printer) {
-                    if ($printer['id'] === $printerIdToUse) {
-                        $printerConfig = $printer;
-                        break;
-                    }
-                }
+                foreach ($printers as $printer) if ($printer['id'] === $printerIdToUse) $printerConfig = $printer;
             }
-            
-            if (!$printerConfig && !empty($printers[0])) {
-                $printerConfig = $printers[0];
-            }
-
-            if (!$printerConfig) throw new \Exception("Impossible de déterminer une imprimante pour le document ID $docId.");
+            if (!$printerConfig && !empty($printers[0])) $printerConfig = $printers[0];
+            if (!$printerConfig) throw new \Exception("Impossible de déterminer une imprimante.");
             
             $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
             if (!file_exists($filePath)) throw new \Exception("Fichier à imprimer non trouvé : " . $filePath);
 
-            $uriParts = parse_url($printerConfig['uri']);
-            $serverUri = ($uriParts['scheme'] ?? 'http') . '://' . ($uriParts['host'] ?? 'localhost') . ':' . ($uriParts['port'] ?? 631);
-            $printerName = basename($uriParts['path'] ?? 'printer');
-
-            $server = new IppServer();
-            $server->setUri($serverUri);
-            $ipp = new Ipp($server, new GuzzleClient(['timeout' => 30, 'verify' => false]));
-
-            $printer = new IppPrinter();
-            $printer->setHostname($printerName);
-
-            $fileType = $this->getFileTypeEnumFromMimeType($document['mime_type']);
-            $ippFile = new IppPrintFile(file_get_contents($filePath), $fileType);
-            $ippFile->setFileName($document['original_filename']);
-
-            $response = $ipp->print($printer, $ippFile);
+            // --- CORRECTION DÉFINITIVE APPLIQUÉE ICI ---
+            // On extrait le nom système de l'imprimante depuis l'URI.
+            $printerSystemName = basename(parse_url($printerConfig['uri'], PHP_URL_PATH));
             
-            // --- CORRECTION FINALE APPLIQUÉE ICI ---
-            // On récupère le tableau d'attributs, car getAttribute() n'existe pas dans la version 0.2.2
-            $attributes = $response->getAttributes();
-            $jobIdAttribute = $attributes['job-id'] ?? null;
+            $escapedPrinterName = escapeshellarg($printerSystemName);
+            $escapedFilePath = escapeshellarg($filePath);
+            $escapedTitle = escapeshellarg($document['original_filename']);
+            
+            // Construit la commande `lp` avec le nom système correct.
+            $command = "lp -d {$escapedPrinterName} -t {$escapedTitle} {$escapedFilePath} 2>&1";
+            
+            $output = shell_exec($command);
 
-            if ($jobIdAttribute) {
-                $jobId = $jobIdAttribute->getValue();
-                $pdo->prepare("UPDATE documents SET status = 'to_print', print_job_id = ? WHERE id = ?")
-                    ->execute([$jobId, $docId]);
+            if (preg_match('/request id is .*?-(\d+)/', $output, $matches)) {
+                $jobId = $matches[1];
+                $pdo->prepare("UPDATE documents SET print_job_id = ? WHERE id = ?")->execute([$jobId, $docId]);
                 $this->notifyClients('print_sent', [
                     'doc_id' => $docId, 
                     'filename' => $document['original_filename'],
                     'message' => "Document '" . htmlspecialchars($document['original_filename']) . "' envoyé à l'imprimante."
                 ]);
             } else {
-                throw new \Exception("L'envoi du travail à CUPS a échoué. Job-ID non retourné. " . ($response->getStatusMessage() ?? ''));
+                throw new \Exception("Échec de la commande d'impression : " . ($output ?: "Aucune sortie. Vérifiez les permissions de l'utilisateur www-data."));
             }
+
         } catch (\Exception $e) {
+            $pdo->prepare("UPDATE documents SET status = 'print_error', print_error_message = ? WHERE id = ?")
+                ->execute([$e->getMessage(), $docId]);
             error_log("Erreur d'impression (doc ID: $docId): " . $e->getMessage());
         }
     }
@@ -344,6 +395,7 @@ class DocumentController
     private function notifyClients(string $action, array $data): void
     {
         try {
+            // L'URL du WebSocket est maintenant gérée par le reverse proxy
             $client = new WebSocketClient("ws://127.0.0.1:8082");
             $client->send(json_encode(['action' => $action, 'data' => $data]));
             $client->close();

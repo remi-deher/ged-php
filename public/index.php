@@ -32,6 +32,11 @@ switch ($requestUri) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->testPrinter();
         break;
 
+    // NOUVELLE ROUTE POUR LE DASHBOARD D'IMPRESSION
+    case '/print-queue/status':
+        $documentController->getPrintQueueStatus();
+        break;
+
     // Routes existantes
     case '/settings/tenant/save':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->saveTenant();

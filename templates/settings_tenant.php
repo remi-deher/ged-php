@@ -114,7 +114,19 @@
                 </button>
             </div>
 
-            <div id="printer-modal" class="modal-overlay" style="display: none;"></div>
+<div id="printer-modal" class="modal-overlay" style="display:none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 id="printer-modal-title">Ajouter une imprimante</h2>
+                        <button class="modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="printer-form" action="/settings/printer/save" method="POST">
+                            </form>
+                    </div>
+                </div>
+            </div>
+
             <div id="tenant-modal" class="modal-overlay" style="display:none;"><div class="modal-content"><div class="modal-header"><h2 id="tenant-modal-title"></h2><button class="modal-close">&times;</button></div><div class="modal-body"><form id="tenant-form" action="/settings/tenant/save" method="POST"></form></div></div></div>
             <div id="account-modal" class="modal-overlay" style="display:none;"><div class="modal-content"><div class="modal-header"><h2 id="account-modal-title"></h2><button class="modal-close">&times;</button></div><div class="modal-body"><form id="account-form" action="/settings/account/save" method="POST"></form></div></div></div>
         </div>

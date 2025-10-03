@@ -34,11 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (modal) {
         document.querySelectorAll('.email-row').forEach(row => {
             row.addEventListener('click', (e) => {
-                // Empêche l'ouverture de la modale si on clique sur un bouton, un lien ou une checkbox
                 if (e.target.closest('button, a, input[type="checkbox"]')) {
                     return;
                 }
-                
                 const docId = row.dataset.docId;
                 openModalForDocument(docId);
             });
@@ -46,8 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const openModalForDocument = async (docId) => {
             if (!docId) return;
-
-            // Afficher un état de chargement
             modalTitle.textContent = 'Chargement...';
             modalAttachmentsList.innerHTML = '<li>Chargement des pièces jointes...</li>';
             modalPreviewIframe.src = 'about:blank';
@@ -55,18 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const response = await fetch(`/document/details?id=${docId}`);
-                if (!response.ok) {
-                    throw new Error('Document non trouvé ou erreur serveur.');
-                }
+                if (!response.ok) throw new Error('Document non trouvé ou erreur serveur.');
                 const data = await response.json();
                 
                 modalTitle.textContent = data.main_document.original_filename;
-                
-                // Afficher le document principal dans l'iframe
                 modalPreviewIframe.src = `/document/download?id=${data.main_document.id}`;
 
-                // Lister les pièces jointes
-                modalAttachmentsList.innerHTML = ''; // Vider la liste
+                modalAttachmentsList.innerHTML = '';
                 if (data.attachments && data.attachments.length > 0) {
                     data.attachments.forEach(attachment => {
                         const li = document.createElement('li');
@@ -84,11 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // Fermeture de la modale
         modal.addEventListener('click', (e) => {
             if (e.target === modal || e.target.classList.contains('modal-close')) {
                 modal.style.display = 'none';
-                modalPreviewIframe.src = 'about:blank'; // Important pour arrêter le chargement de PDF, etc.
+                modalPreviewIframe.src = 'about:blank';
             }
         });
     }
@@ -110,29 +100,92 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        // On se connecte à un CHEMIN "/ws" sur le MÊME domaine, géré par le reverse proxy
+        const socketUrl = `${protocol}://${window.location.host}/ws`;
+        console.log(`Tentative de connexion au WebSocket sur ${socketUrl}`);
+        
         try {
-            const socket = new WebSocket('ws://127.0.0.1:8082');
-            socket.onopen = () => console.log('WebSocket connecté.');
+            const socket = new WebSocket(socketUrl);
+
+            socket.onopen = () => console.log('WebSocket connecté avec succès via le reverse proxy.');
+
             socket.onmessage = (event) => {
                 const payload = JSON.parse(event.data);
                 if (payload.action === 'print_sent') {
                     showToast(payload.data.message, '🖨️');
+                    updatePrintQueueDashboard();
                     const docRow = document.querySelector(`tr[data-doc-id="${payload.data.doc_id}"]`);
                     if (docRow) {
                         const statusDot = docRow.querySelector('.status-dot');
                         if (statusDot) {
-                            statusDot.style.backgroundColor = '#ffc107'; // Jaune "À imprimer"
+                            statusDot.style.backgroundColor = '#ffc107';
                             statusDot.title = 'À imprimer';
                         }
                     }
                 }
             };
-            socket.onclose = () => { setTimeout(connectWebSocket, 5000); };
-            socket.onerror = (error) => { console.error('Erreur WebSocket:', error); socket.close(); };
+
+            socket.onclose = () => { 
+                console.log('WebSocket déconnecté. Tentative de reconnexion dans 5s...');
+                setTimeout(connectWebSocket, 5000); 
+            };
+            
+            socket.onerror = (error) => { 
+                console.error('Erreur WebSocket:', error); 
+                socket.close(); 
+            };
+
         } catch(e) {
-            console.error("Impossible de se connecter au serveur WebSocket.");
+            console.error("Impossible de créer la connexion WebSocket.", e);
         }
     }
 
     connectWebSocket();
+
+    // --- Gestion du dashboard de la file d'impression ---
+    const printQueueBody = document.getElementById('print-queue-body');
+
+    async function updatePrintQueueDashboard() {
+        try {
+            const response = await fetch('/print-queue/status');
+            if (!response.ok) {
+                printQueueBody.innerHTML = '<tr><td colspan="4" class="empty-state" style="color: var(--danger-color);">Impossible de récupérer le statut de la file d\'impression.</td></tr>';
+                return;
+            }
+            const queue = await response.json();
+            const activeQueue = queue.filter(job => job.status !== 'Terminé');
+            
+            printQueueBody.innerHTML = '';
+
+            if (activeQueue.length > 0) {
+                activeQueue.forEach(job => {
+                    const row = document.createElement('tr');
+                    let statusHtml = `<span>${job.status}</span>`;
+                    
+                    if (job.status === 'En cours d\'impression') {
+                        statusHtml = `<span style="color: var(--primary-color);">${job.status} ⏳</span>`;
+                    } else if (job.status === 'Erreur') {
+                        statusHtml = `<span style="color: var(--danger-color); font-weight: bold;">${job.status} ⚠️</span>`;
+                    }
+
+                    row.innerHTML = `
+                        <td>${job.filename || 'N/A'}</td>
+                        <td>${job.job_id || 'N/A'}</td>
+                        <td>${statusHtml}</td>
+                        <td>${job.error || 'Aucun détail'}</td>
+                    `;
+                    printQueueBody.appendChild(row);
+                });
+            } else {
+                printQueueBody.innerHTML = '<tr><td colspan="4" class="empty-state">La file d\'impression est vide.</td></tr>';
+            }
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour du dashboard d\'impression:', error);
+            printQueueBody.innerHTML = '<tr><td colspan="4" class="empty-state" style="color: var(--danger-color);">Erreur lors de la mise à jour du dashboard.</td></tr>';
+        }
+    }
+
+    updatePrintQueueDashboard();
+    setInterval(updatePrintQueueDashboard, 7000);
 });

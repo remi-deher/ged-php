@@ -12,6 +12,29 @@
 <body>
     <div class="container">
         <?php require_once __DIR__ . '/parts/navbar.php'; ?>
+
+        <div id="print-queue-dashboard" class="card">
+            <div class="card-header">
+                <h2>🖨️ File d'impression en cours</h2>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Fichier</th>
+                            <th>Job ID</th>
+                            <th>Statut</th>
+                            <th>Détails</th>
+                        </tr>
+                    </thead>
+                    <tbody id="print-queue-body">
+                        <tr>
+                            <td colspan="4" class="empty-state">Chargement du statut de la file d'impression...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
         
         <div class="header-actions">
              <?php if (isset($currentFolder) && $currentFolder): ?>
@@ -82,9 +105,10 @@
                         <?php if (isset($documents) && !empty($documents)): ?>
                             <?php 
                                 $status_map = [
-                                    'received' => ['color' => '#007bff', 'label' => 'Reçu'],
-                                    'to_print' => ['color' => '#ffc107', 'label' => 'À imprimer'],
-                                    'printed'  => ['color' => '#28a745', 'label' => 'Imprimé']
+                                    'received'    => ['color' => '#007bff', 'label' => 'Reçu'],
+                                    'to_print'    => ['color' => '#ffc107', 'label' => 'À imprimer'],
+                                    'printed'     => ['color' => '#28a745', 'label' => 'Imprimé'],
+                                    'print_error' => ['color' => '#dc3545', 'label' => 'Erreur d\'impression']
                                 ];
                             ?>
                             <?php foreach ($documents as $doc): ?>

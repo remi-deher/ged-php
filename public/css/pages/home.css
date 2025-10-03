@@ -35,6 +35,15 @@
     padding: 1.5rem;
 }
 
+/* NOUVEAU: Style pour le dashboard d'impression */
+#print-queue-dashboard .card-header {
+    background-color: var(--secondary-color);
+    color: white;
+}
+#print-queue-dashboard h2 {
+    color: white;
+}
+
 .folder-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

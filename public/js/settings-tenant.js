@@ -6,12 +6,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const printerModal = document.getElementById('printer-modal');
     if (printerModal) {
         const printerForm = document.getElementById('printer-form');
-        document.getElementById('btn-show-printer-form').addEventListener('click', () => {
-            printerForm.reset();
-            document.getElementById('printer_id').value = '';
-            document.getElementById('printer-modal-title').innerText = 'Ajouter une imprimante';
+        
+        const openPrinterModal = (printer = null) => {
+            document.getElementById('printer-modal-title').innerText = printer ? 'Modifier l\'imprimante' : 'Ajouter une imprimante';
+            printerForm.innerHTML = `
+                <input type="hidden" name="printer_id" value="${printer?.id || ''}">
+                <div class="form-group">
+                    <label>Nom de l'imprimante</label>
+                    <div class="input-group">
+                        <span>🖨️</span>
+                        <input style="padding-left: 30px;" type="text" name="printer_name" value="${printer?.name || ''}" required placeholder="Ex: Ordonnances Bureau 1">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>URI de l'imprimante</label>
+                    <div class="input-group">
+                        <span>🔗</span>
+                        <input style="padding-left: 30px;" type="text" name="printer_uri" value="${printer?.uri || ''}" required placeholder="ipp://192.168.1.100/printers/MonImprimante">
+                    </div>
+                    <small>Doit correspondre à l'URI visible dans l'interface de CUPS.</small>
+                </div>
+                <div class="form-actions">
+                    ${printer ? `<form action="/settings/printer/delete" method="POST" onsubmit="return confirm('Voulez-vous vraiment supprimer cette imprimante ?');" style="display:inline; margin-right: auto;"><input type="hidden" name="printer_id" value="${printer.id}"><button type="submit" class="button button-delete">Supprimer</button></form>` : '<span></span>'}
+                    <button type="submit" class="button">💾 Enregistrer</button>
+                </div>
+            `;
             printerModal.style.display = 'flex';
+        };
+
+        document.getElementById('btn-show-printer-form').addEventListener('click', () => {
+            openPrinterModal();
         });
+
+        // Note: La logique pour éditer une imprimante n'était pas présente, elle pourrait être ajoutée ici si besoin.
 
         document.querySelectorAll('.btn-test-printer').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -23,7 +50,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 button.disabled = true;
                 
                 try {
-                    const response = await fetch('/settings/printer/test', { method: 'POST', body: new FormData(printerForm) });
+                    // On doit créer un FormData pour envoyer l'ID de l'imprimante
+                    const formData = new FormData();
+                    formData.append('printer_id', printerId);
+
+                    const response = await fetch('/settings/printer/test', { method: 'POST', body: formData });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'Erreur inconnue');
                     
@@ -32,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } catch (error) {
                     alert('Erreur : ' + error.message);
-                    button.innerHTML = originalText;
+                    button.innerHTML = '🧪'; // Retour à l'icône de test en cas d'erreur
                 } finally {
                     setTimeout(() => {
                         button.innerHTML = originalText;
@@ -66,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const openTenantModal = (tenant = null) => {
             document.getElementById('tenant-modal-title').innerText = tenant ? 'Gérer le Tenant' : 'Ajouter un nouveau Tenant';
-            // Les icônes sont remplacées par des émojis
             tenantForm.innerHTML = `
                 <input type="hidden" name="tenant_id" value="${tenant?.tenant_id || ''}">
                 <div class="form-group"><label>Nom du Tenant</label><div class="input-group"><span>🏢</span><input style="padding-left: 30px;" type="text" name="tenant_name" value="${tenant?.tenant_name || ''}" required></div></div>
