@@ -13,6 +13,8 @@ use DR\Ipp\Enum\FileTypeEnum;
 
 class DocumentController
 {
+    // ... toutes les autres méthodes restent inchangées (listDocuments, getPrintQueueStatus, etc.)
+    
     public function listDocuments(): void
     {
         $pdo = Database::getInstance();
@@ -33,7 +35,6 @@ class DocumentController
             $folders = $foldersStmt->fetchAll();
         }
         
-        // AMÉLIORATION : Ajout de d.size et d.mime_type à la requête
         $sql = 'SELECT d.id, d.original_filename, d.status, d.created_at, d.parent_document_id, d.folder_id, d.source_account_id, d.size, d.mime_type FROM documents d WHERE d.deleted_at IS NULL AND d.folder_id ' . ($currentFolderId ? '= ?' : 'IS NULL') . ' ORDER BY d.created_at DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($currentFolderId ? [$currentFolderId] : []);
@@ -292,9 +293,6 @@ class DocumentController
         exit();
     }
     
-    /**
-     * NOUVEAU: Gère le nettoyage d'un travail d'impression en erreur
-     */
     public function clearPrintJobError(): void
     {
         header('Content-Type: application/json');
@@ -466,23 +464,49 @@ class DocumentController
         exit();
     }
 
+    // AMÉLIORATION: La méthode est maintenant compatible AJAX
     public function moveDocument(): void
     {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+
         if (isset($_POST['doc_id'], $_POST['folder_id'])) {
-            $docId = (int)$_POST['doc_id'];
-            $folderId = $_POST['folder_id'] === 'root' ? null : (int)$_POST['folder_id'];
-            $pdo = Database::getInstance();
-            $stmt = $pdo->prepare("UPDATE documents SET folder_id = ? WHERE id = ?");
-            $stmt->execute([$folderId, $docId]);
+            try {
+                $docId = (int)$_POST['doc_id'];
+                $folderId = $_POST['folder_id'] === 'root' ? null : (int)$_POST['folder_id'];
+                
+                $pdo = Database::getInstance();
+                $stmt = $pdo->prepare("UPDATE documents SET folder_id = ? WHERE id = ?");
+                $stmt->execute([$folderId, $docId]);
+
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'message' => 'Document déplacé avec succès.']);
+                    exit();
+                }
+
+            } catch (\Exception $e) {
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    http_response_code(500);
+                    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                    exit();
+                }
+                // Redirection avec erreur pour les requêtes non-AJAX
+                header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/') . '?error=' . urlencode('Erreur lors du déplacement'));
+                exit();
+            }
         }
-        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
-        exit();
+
+        // Redirection classique pour les requêtes non-AJAX
+        if (!$isAjax) {
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+            exit();
+        }
     }
 
     private function notifyClients(string $action, array $data): void
     {
         try {
-            // L'URL du WebSocket est maintenant gérée par le reverse proxy
             $client = new WebSocketClient("ws://127.0.0.1:8082");
             $client->send(json_encode(['action' => $action, 'data' => $data]));
             $client->close();

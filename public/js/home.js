@@ -173,10 +173,9 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(data.message, '🗑️');
             updatePrintQueueDashboard(); // Recharge la file pour être sûr
             
-            // Met à jour le statut dans la liste principale
             const mainDocRow = document.querySelector(`.email-row[data-doc-id="${docId}"] .status-dot`);
             if(mainDocRow) {
-                mainDocRow.style.backgroundColor = '#007bff'; // Bleu "Reçu"
+                mainDocRow.style.backgroundColor = '#007bff';
                 mainDocRow.title = 'Reçu (Annulée)';
             }
 
@@ -208,12 +207,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error || 'Erreur inconnue');
             }
             showToast(data.message, '✨');
-            updatePrintQueueDashboard(); // Recharge la file
+            updatePrintQueueDashboard();
             
-            // Met à jour le statut dans la liste principale
             const mainDocRow = document.querySelector(`.email-row[data-doc-id="${docId}"] .status-dot`);
             if(mainDocRow) {
-                mainDocRow.style.backgroundColor = '#007bff'; // Bleu "Reçu"
+                mainDocRow.style.backgroundColor = '#007bff';
                 mainDocRow.title = 'Reçu';
             }
 
@@ -253,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (job.status === 'Erreur') {
                         statusHtml = `<span style="color: var(--danger-color); font-weight: bold;">⚠️ ${job.status}</span>`;
                         actionHtml = `<button class="button-icon btn-clear-error" title="Effacer l'erreur">🗑️</button>`;
-                    } else { // Statut en attente
+                    } else {
                         statusHtml = `<span>⏳ En attente</span>`;
                         actionHtml = `<button class="button-icon button-delete btn-cancel-print" title="Annuler l'impression">❌</button>`;
                     }
@@ -288,4 +286,77 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updatePrintQueueDashboard();
     setInterval(updatePrintQueueDashboard, 7000);
+    
+    // --- Gestion du Glisser-Déposer (Drag and Drop) ---
+
+    const draggableDocuments = document.querySelectorAll('.table tbody tr[draggable="true"]');
+    const dropzones = document.querySelectorAll('.dropzone, #root-dropzone');
+
+    draggableDocuments.forEach(doc => {
+        doc.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', doc.dataset.docId);
+            setTimeout(() => doc.classList.add('dragging'), 0);
+        });
+
+        doc.addEventListener('dragend', () => {
+            doc.classList.remove('dragging');
+        });
+    });
+
+    dropzones.forEach(zone => {
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zone.classList.add('drag-over');
+        });
+
+        zone.addEventListener('dragleave', () => {
+            zone.classList.remove('drag-over');
+        });
+
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+
+            const docId = e.dataTransfer.getData('text/plain');
+            const folderId = zone.dataset.folderId;
+
+            if (docId && folderId) {
+                moveDocument(docId, folderId);
+            }
+        });
+    });
+
+    async function moveDocument(docId, folderId) {
+        const formData = new FormData();
+        formData.append('doc_id', docId);
+        formData.append('folder_id', folderId);
+
+        try {
+            const response = await fetch('/document/move', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Une erreur est survenue.');
+            }
+            
+            showToast(result.message, '📁');
+
+            const movedDocRow = document.querySelector(`tr[data-doc-id="${docId}"]`);
+            if (movedDocRow) {
+                movedDocRow.style.transition = 'opacity 0.5s ease';
+                movedDocRow.style.opacity = '0';
+                setTimeout(() => movedDocRow.remove(), 500);
+            }
+
+        } catch (error) {
+            showToast(`Erreur : ${error.message}`, '⚠️');
+        }
+    }
 });

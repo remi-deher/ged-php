@@ -17,7 +17,7 @@ function formatSizeUnits($bytes) {
 }
 
 function getFileIcon($mimeType) {
-    if (str_contains($mimeType, 'html')) return '📧'; // NOUVEAU: Icône pour les e-mails
+    if (str_contains($mimeType, 'html')) return '📧';
     if (str_contains($mimeType, 'pdf')) return '📄';
     if (str_contains($mimeType, 'image')) return '🖼️';
     if (str_contains($mimeType, 'word')) return '📝';
@@ -55,7 +55,7 @@ function getFileIcon($mimeType) {
                         </tr>
                     </thead>
                     <tbody id="print-queue-body">
-                        </tbody>
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -63,7 +63,7 @@ function getFileIcon($mimeType) {
         <div class="header-actions">
              <?php if (isset($currentFolder) && $currentFolder): ?>
                 <h1>
-                    <a href="/" class="breadcrumb-link">Documents</a> / 📁 <?= htmlspecialchars($currentFolder['name']) ?>
+                    <a href="/" class="breadcrumb-link" id="root-dropzone" data-folder-id="root">Documents</a> / 📁 <?= htmlspecialchars($currentFolder['name']) ?>
                 </h1>
             <?php else: ?>
                 <h1>📁 Documents</h1>
@@ -88,7 +88,7 @@ function getFileIcon($mimeType) {
                 <?php if (isset($folders) && !empty($folders)): ?>
                     <div class="folder-grid">
                         <?php foreach ($folders as $folder): ?>
-                            <a href="/?folder_id=<?= $folder['id'] ?>" class="folder-item">
+                            <a href="/?folder_id=<?= $folder['id'] ?>" class="folder-item dropzone" data-folder-id="<?= $folder['id'] ?>">
                                 <div class="folder-icon">📁</div>
                                 <div class="folder-name"><?= htmlspecialchars($folder['name']) ?></div>
                             </a>
@@ -139,7 +139,7 @@ function getFileIcon($mimeType) {
                                 ];
                             ?>
                             <?php foreach ($documents as $doc): ?>
-                                <tr data-doc-id="<?= $doc['id'] ?>" class="email-row">
+                                <tr data-doc-id="<?= $doc['id'] ?>" class="email-row" draggable="true">
                                     <td class="col-checkbox">
                                         <input type="checkbox" name="doc_ids[]" value="<?= $doc['id'] ?>" class="doc-checkbox" form="bulk-action-form">
                                     </td>

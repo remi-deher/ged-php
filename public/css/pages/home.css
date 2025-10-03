@@ -103,3 +103,20 @@
 .breadcrumb-link:hover {
     text-decoration: underline;
 }
+
+/* --- Styles pour le Glisser-Déposer (Drag and Drop) --- */
+.table tbody tr {
+    transition: opacity 0.2s ease-in-out;
+}
+.table tbody tr.dragging {
+    opacity: 0.4;
+    background: #f0f8ff;
+    outline: 1px solid var(--primary-color);
+}
+
+.folder-item.drag-over,
+a#root-dropzone.drag-over {
+    border: 2px dashed var(--primary-color);
+    transform: scale(1.05);
+    background-color: #f0f8ff;
+}
