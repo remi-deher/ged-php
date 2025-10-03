@@ -7,16 +7,11 @@ use App\Core\Database;
 use App\Services\FileUploaderService;
 use PDO;
 use WebSocket\Client as WebSocketClient;
-use Smalot\Cups\Model\Job;
-use Smalot\Cups\Manager\JobManager;
-use Smalot\Cups\Manager\PrinterManager;
-use Smalot\Cups\Transport\ResponseParser;
-use Smalot\Cups\Transport\Http\Psr7Transport;
-use Http\Discovery\Psr17FactoryDiscovery;
-use Http\Client\Socket\Client as SocketClient;
+use obray\IPP\Printer; // Correction du namespace
 
 class DocumentController
 {
+    
     public function listDocuments(): void
     {
         $pdo = Database::getInstance();
@@ -161,7 +156,7 @@ class DocumentController
         header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
         exit();
     }
-    
+
     private function sendToPrinter(int $docId): void
     {
         try {
@@ -171,7 +166,7 @@ class DocumentController
             $printers = json_decode(file_get_contents($printSettingsFile), true);
             if (empty($printers)) throw new \Exception("Aucune imprimante configurée.");
 
-            $stmt = $pdo->prepare("SELECT d.original_filename, d.stored_filename, d.folder_id, d.source_account_id, f.default_printer_id as folder_printer_id FROM documents d LEFT JOIN folders f ON d.folder_id = f.id WHERE d.id = ? AND d.deleted_at IS NULL");
+            $stmt = $pdo->prepare("SELECT d.original_filename, d.stored_filename, d.mime_type, d.folder_id, d.source_account_id, f.default_printer_id as folder_printer_id FROM documents d LEFT JOIN folders f ON d.folder_id = f.id WHERE d.id = ? AND d.deleted_at IS NULL");
             $stmt->execute([$docId]);
             $document = $stmt->fetch();
             if (!$document) throw new \Exception("Document ID $docId non trouvé.");
@@ -212,34 +207,25 @@ class DocumentController
             $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
             if (!file_exists($filePath)) throw new \Exception("Fichier à imprimer non trouvé : " . $filePath);
 
-            // --- CORRECTION APPLIQUÉE ---
-            // Instanciation manuelle du transport et des managers, car l'API du Builder a changé.
-            $socketClient = new SocketClient();
-            $requestFactory = Psr17FactoryDiscovery::findRequestFactory();
-            $transport = new Psr7Transport($socketClient, $requestFactory);
-            $parser = new ResponseParser();
-            $printerManager = new PrinterManager($parser, $transport);
-            $printer = $printerManager->findByUri($printerUri);
+            // --- NOUVELLE LOGIQUE D'IMPRESSION CORRIGÉE ---
+            $printer = new Printer($printerUri);
+            $fileContent = file_get_contents($filePath);
 
-            if (!$printer) throw new \Exception("Imprimante CUPS non trouvée à l'URI : " . $printerUri);
+            $attributes = ['document-format' => $document['mime_type'] ?: 'application/octet-stream'];
             
-            $job = new Job();
-            $job->setName($document['original_filename']);
-            $job->setFilePath($filePath);
+            $response = $printer->printJob($fileContent, null, $attributes);
             
-            $jobManager = new JobManager($parser, $transport);
-            $result = $jobManager->send($printer, $job);
-            
-            if ($result) {
+            if (isset($response['job-attributes-tag']['job-id'])) {
+                $jobId = $response['job-attributes-tag']['job-id'];
                 $pdo->prepare("UPDATE documents SET status = 'to_print', print_job_id = ? WHERE id = ?")
-                    ->execute([$job->getId(), $docId]);
+                    ->execute([$jobId, $docId]);
                 $this->notifyClients('print_sent', [
                     'doc_id' => $docId, 
                     'filename' => $document['original_filename'],
                     'message' => "Document '" . htmlspecialchars($document['original_filename']) . "' envoyé à l'imprimante."
                 ]);
             } else {
-                throw new \Exception("L'envoi du travail à CUPS a échoué.");
+                throw new \Exception("L'envoi du travail à CUPS a échoué. Réponse invalide de l'imprimante.");
             }
         } catch (\Exception $e) {
             error_log("Erreur d'impression (doc ID: $docId): " . $e->getMessage());

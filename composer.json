@@ -9,7 +9,7 @@
         "league/oauth2-client": "^2.6",
         "thenetworg/oauth2-azure": "^2.2",
         "microsoft/microsoft-graph": "^2.48",
-        "smalot/cups-ipp": "^0.5"
+        "obray/ipp": "dev-master"
     },
     "autoload": {
         "psr-4": {

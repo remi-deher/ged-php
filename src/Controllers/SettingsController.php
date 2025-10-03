@@ -5,23 +5,11 @@ namespace App\Controllers;
 
 use App\Core\Database;
 use App\Services\MicrosoftGraphService;
-use Smalot\Cups\Manager\JobManager;
-use Smalot\Cups\Manager\PrinterManager;
-use Smalot\Cups\Transport\ResponseParser;
-use Smalot\Cups\Transport\Http\Psr7Transport;
-use Http\Discovery\Psr17FactoryDiscovery;
-use Http\Client\Socket\Client as SocketClient;
+use obray\IPP\Printer; // Correction du namespace
 
 class SettingsController
 {
-    private $settingsFile;
-    private $printSettingsFile;
-
-    public function __construct()
-    {
-        $this->settingsFile = dirname(__DIR__, 2) . '/config/mail_settings.json';
-        $this->printSettingsFile = dirname(__DIR__, 2) . '/config/print_settings.json';
-    }
+    // ... (les autres méthodes ne changent pas)
 
     public function showSettings(): void
     {
@@ -37,7 +25,6 @@ class SettingsController
     {
         $printers = $this->loadPrintSettings();
         $printerId = $_POST['printer_id'] ?: 'printer_' . time();
-        $isEditing = !empty($_POST['printer_id']);
         
         $printerData = [
             'id' => $printerId,
@@ -124,32 +111,18 @@ class SettingsController
 
             if (!$printerConfig) throw new \Exception("Imprimante non trouvée.");
 
-            $testContent = "Ceci est une page de test pour l'imprimante '{$printerConfig['name']}' depuis la GED.\n\nDate: " . date('Y-m-d H:i:s');
-            $filePath = sys_get_temp_dir() . '/ged_test_print_' . uniqid() . '.txt';
-            file_put_contents($filePath, $testContent);
-
-            // --- CORRECTION APPLIQUÉE ---
-            $socketClient = new SocketClient();
-            $requestFactory = Psr17FactoryDiscovery::findRequestFactory();
-            $transport = new Psr7Transport($socketClient, $requestFactory);
-            $parser = new ResponseParser();
-            $printerManager = new PrinterManager($parser, $transport);
-            $cupsPrinter = $printerManager->findByUri($printerConfig['uri']);
-
-            if (!$cupsPrinter) throw new \Exception("Imprimante CUPS non trouvée à l'URI : " . $printerConfig['uri']);
+            // --- NOUVELLE LOGIQUE DE TEST CORRIGÉE ---
+            $printer = new Printer($printerConfig['uri']);
+            $content = "Ceci est une page de test pour l'imprimante '{$printerConfig['name']}' depuis la GED.\n\nDate: " . date('Y-m-d H:i:s');
+            $attributes = ['document-format' => 'text/plain'];
             
-            $job = new \Smalot\Cups\Model\Job();
-            $job->setName('Test_Page_GED');
-            $job->setFilePath($filePath);
-            
-            $jobManager = new JobManager($parser, $transport);
-            $result = $jobManager->send($cupsPrinter, $job);
-            
-            unlink($filePath);
+            $response = $printer->printJob($content, null, $attributes);
 
-            if (!$result) throw new \Exception("L'envoi du travail de test à CUPS a échoué.");
-
-            echo json_encode(['success' => true, 'message' => "Page de test envoyée à '{$printerConfig['name']}'. Job ID: " . $job->getId()]);
+            if (isset($response['job-attributes-tag']['job-id'])) {
+                 echo json_encode(['success' => true, 'message' => "Page de test envoyée à '{$printerConfig['name']}'. Job ID: " . $response['job-attributes-tag']['job-id']]);
+            } else {
+                throw new \Exception("L'envoi du travail de test à CUPS a échoué.");
+            }
 
         } catch (\Exception $e) {
             http_response_code(500);
@@ -158,8 +131,7 @@ class SettingsController
         }
         exit();
     }
-
-
+    
     public function saveTenant(): void
     {
         $tenants = $this->loadSettings();
