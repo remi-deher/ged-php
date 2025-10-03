@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "19d21871c679b6443d8e256ae7a598db",
+    "content-hash": "15a2446d29d6e22a2f421a5975ff3719",
     "packages": [
         {
             "name": "brick/math",
@@ -205,6 +205,111 @@
                 }
             ],
             "time": "2025-08-20T19:15:30+00:00"
+        },
+        {
+            "name": "digitalrevolution/ipp",
+            "version": "v0.2.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/123inkt/ipp.git",
+                "reference": "cb6b56677e72e721d77224e0b5fecf3027a1224b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/123inkt/ipp/zipball/cb6b56677e72e721d77224e0b5fecf3027a1224b",
+                "reference": "cb6b56677e72e721d77224e0b5fecf3027a1224b",
+                "shasum": ""
+            },
+            "require": {
+                "digitalrevolution/utils": "^1.0",
+                "nyholm/psr7": "^1.8",
+                "php": "^8.3",
+                "psr/http-client": "^1.0",
+                "psr/log": "^3.0"
+            },
+            "require-dev": {
+                "digitalrevolution/accessorpair-constraint": "^v2.4.1",
+                "digitalrevolution/php-codesniffer-baseline": "^1.1",
+                "digitalrevolution/phpunit-file-coverage-inspection": "^3.0",
+                "phpmd/phpmd": "^2.12",
+                "phpstan/extension-installer": "^1.2",
+                "phpstan/phpstan": "^2.0.0",
+                "phpstan/phpstan-phpunit": "^2.0.0",
+                "phpunit/phpunit": "^12.0",
+                "roave/security-advisories": "dev-latest",
+                "slevomat/coding-standard": "^8.16",
+                "squizlabs/php_codesniffer": "^3.7"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "DR\\Ipp\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Digital Revolution IPP library",
+            "support": {
+                "issues": "https://github.com/123inkt/ipp/issues",
+                "source": "https://github.com/123inkt/ipp/tree/v0.2.2"
+            },
+            "time": "2025-08-27T06:08:08+00:00"
+        },
+        {
+            "name": "digitalrevolution/utils",
+            "version": "v1.25.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/123inkt/utils.git",
+                "reference": "5b215eec707e1f35ce86f7c65c6a8d4167f14448"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/123inkt/utils/zipball/5b215eec707e1f35ce86f7c65c6a8d4167f14448",
+                "reference": "5b215eec707e1f35ce86f7c65c6a8d4167f14448",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1"
+            },
+            "require-dev": {
+                "digitalrevolution/phpunit-file-coverage-inspection": "^3.0",
+                "mikey179/vfsstream": "^1.6.11",
+                "nikic/php-parser": "^4.19 || ^5.4",
+                "phpmd/phpmd": "^2.15",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan": "^2.1",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpstan/phpstan-strict-rules": "^2.0",
+                "phpunit/phpunit": "^10.2 || ^11.0 || ^12.0",
+                "roave/security-advisories": "dev-latest",
+                "squizlabs/php_codesniffer": "^3.11"
+            },
+            "type": "library",
+            "extra": {
+                "phpstan": {
+                    "includes": [
+                        "extension.neon"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "DR\\Utils\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "A library for everyday use utility classes",
+            "support": {
+                "issues": "https://github.com/123inkt/utils/issues",
+                "source": "https://github.com/123inkt/utils/tree/v1.25.0"
+            },
+            "time": "2025-08-27T13:54:37+00:00"
         },
         {
             "name": "doctrine/annotations",
@@ -1518,6 +1623,84 @@
             "time": "2025-03-18T14:27:59+00:00"
         },
         {
+            "name": "nyholm/psr7",
+            "version": "1.8.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Nyholm/psr7.git",
+                "reference": "a71f2b11690f4b24d099d6b16690a90ae14fc6f3"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Nyholm/psr7/zipball/a71f2b11690f4b24d099d6b16690a90ae14fc6f3",
+                "reference": "a71f2b11690f4b24d099d6b16690a90ae14fc6f3",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.2",
+                "psr/http-factory": "^1.0",
+                "psr/http-message": "^1.1 || ^2.0"
+            },
+            "provide": {
+                "php-http/message-factory-implementation": "1.0",
+                "psr/http-factory-implementation": "1.0",
+                "psr/http-message-implementation": "1.0"
+            },
+            "require-dev": {
+                "http-interop/http-factory-tests": "^0.9",
+                "php-http/message-factory": "^1.0",
+                "php-http/psr7-integration-tests": "^1.0",
+                "phpunit/phpunit": "^7.5 || ^8.5 || ^9.4",
+                "symfony/error-handler": "^4.4"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "1.8-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Nyholm\\Psr7\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Tobias Nyholm",
+                    "email": "tobias.nyholm@gmail.com"
+                },
+                {
+                    "name": "Martijn van der Ven",
+                    "email": "martijn@vanderven.se"
+                }
+            ],
+            "description": "A fast PHP7 implementation of PSR-7",
+            "homepage": "https://tnyholm.se",
+            "keywords": [
+                "psr-17",
+                "psr-7"
+            ],
+            "support": {
+                "issues": "https://github.com/Nyholm/psr7/issues",
+                "source": "https://github.com/Nyholm/psr7/tree/1.8.2"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/Zegnat",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nyholm",
+                    "type": "github"
+                }
+            ],
+            "time": "2024-09-09T07:06:30+00:00"
+        },
+        {
             "name": "nyholm/psr7-server",
             "version": "1.1.0",
             "source": {
@@ -1582,44 +1765,6 @@
                 }
             ],
             "time": "2023-11-08T09:30:43+00:00"
-        },
-        {
-            "name": "obray/ipp",
-            "version": "dev-master",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/nateobray/IPP.git",
-                "reference": "3c5241f2fc4200169ad94391e003c6c9b3f3a16d"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/nateobray/IPP/zipball/3c5241f2fc4200169ad94391e003c6c9b3f3a16d",
-                "reference": "3c5241f2fc4200169ad94391e003c6c9b3f3a16d",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=7.1"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^8.1"
-            },
-            "default-branch": true,
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "obray\\ipp\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "description": "A PHP implemntation of the Internet Printing Protocol (IPP)",
-            "support": {
-                "issues": "https://github.com/nateobray/IPP/issues",
-                "source": "https://github.com/nateobray/IPP/tree/master"
-            },
-            "time": "2024-01-15T19:23:20+00:00"
         },
         {
             "name": "open-telemetry/api",
@@ -3859,13 +4004,11 @@
     "packages-dev": [],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "obray/ipp": 20
-    },
+    "stability-flags": {},
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
-        "php": ">=8.2"
+        "php": ">=8.3"
     },
     "platform-dev": {},
     "plugin-api-version": "2.6.0"

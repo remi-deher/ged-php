@@ -5,11 +5,25 @@ namespace App\Controllers;
 
 use App\Core\Database;
 use App\Services\MicrosoftGraphService;
-use obray\IPP\Printer; // Correction du namespace
+
+// Classes pour la bibliothèque d'impression digitalrevolution/ipp
+use DR\Ipp\Ipp;
+use DR\Ipp\Entity\IppServer;
+use DR\Ipp\Entity\IppPrinter;
+use DR\Ipp\Entity\IppPrintFile;
+use DR\Ipp\Enum\FileTypeEnum;
+use GuzzleHttp\Client as GuzzleClient;
 
 class SettingsController
 {
-    // ... (les autres méthodes ne changent pas)
+    private $settingsFile;
+    private $printSettingsFile;
+
+    public function __construct()
+    {
+        $this->settingsFile = dirname(__DIR__, 2) . '/config/mail_settings.json';
+        $this->printSettingsFile = dirname(__DIR__, 2) . '/config/print_settings.json';
+    }
 
     public function showSettings(): void
     {
@@ -111,17 +125,32 @@ class SettingsController
 
             if (!$printerConfig) throw new \Exception("Imprimante non trouvée.");
 
-            // --- NOUVELLE LOGIQUE DE TEST CORRIGÉE ---
-            $printer = new Printer($printerConfig['uri']);
-            $content = "Ceci est une page de test pour l'imprimante '{$printerConfig['name']}' depuis la GED.\n\nDate: " . date('Y-m-d H:i:s');
-            $attributes = ['document-format' => 'text/plain'];
+            $uriParts = parse_url($printerConfig['uri']);
+            $serverUri = ($uriParts['scheme'] ?? 'http') . '://' . ($uriParts['host'] ?? 'localhost') . ':' . ($uriParts['port'] ?? 631);
+            $printerName = basename($uriParts['path'] ?? 'printer');
             
-            $response = $printer->printJob($content, null, $attributes);
+            $server = new IppServer();
+            $server->setUri($serverUri);
+            $ipp = new Ipp($server, new GuzzleClient(['timeout' => 30, 'verify' => false]));
 
-            if (isset($response['job-attributes-tag']['job-id'])) {
-                 echo json_encode(['success' => true, 'message' => "Page de test envoyée à '{$printerConfig['name']}'. Job ID: " . $response['job-attributes-tag']['job-id']]);
+            $printer = new IppPrinter();
+            $printer->setHostname($printerName);
+            
+            $content = "Ceci est une page de test pour l'imprimante '{$printerConfig['name']}' depuis la GED.\n\nDate: " . date('Y-m-d H:i:s');
+            $ippFile = new IppPrintFile($content, FileTypeEnum::PS);
+            $ippFile->setFileName('Test_Page_GED.txt');
+
+            $response = $ipp->print($printer, $ippFile);
+            
+            // --- CORRECTION FINALE APPLIQUÉE ICI ---
+            $attributes = $response->getAttributes();
+            $jobIdAttribute = $attributes['job-id'] ?? null;
+
+            if ($jobIdAttribute) {
+                $jobId = $jobIdAttribute->getValue();
+                echo json_encode(['success' => true, 'message' => "Page de test envoyée à '{$printerConfig['name']}'. Job ID: " . $jobId]);
             } else {
-                throw new \Exception("L'envoi du travail de test à CUPS a échoué.");
+                throw new \Exception("L'envoi du travail de test à CUPS a échoué. " . ($response->getStatusMessage() ?? ''));
             }
 
         } catch (\Exception $e) {

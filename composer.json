@@ -2,14 +2,15 @@
     "name": "votre-nom/ged-collaborative",
     "description": "Gestion Électronique de Documents collaborative en PHP.",
     "require": {
-        "php": ">=8.2",
+        "php": ">=8.3",
         "cboden/ratchet": "^0.4.4",
         "textalk/websocket": "^1.5",
         "dompdf/dompdf": "^3.1",
         "league/oauth2-client": "^2.6",
         "thenetworg/oauth2-azure": "^2.2",
         "microsoft/microsoft-graph": "^2.48",
-        "obray/ipp": "dev-master"
+        "digitalrevolution/ipp": "^0.2.2",
+        "guzzlehttp/guzzle": "^7.0"
     },
     "autoload": {
         "psr-4": {

@@ -7,11 +7,17 @@ use App\Core\Database;
 use App\Services\FileUploaderService;
 use PDO;
 use WebSocket\Client as WebSocketClient;
-use obray\IPP\Printer; // Correction du namespace
+
+// Classes pour la bibliothèque d'impression digitalrevolution/ipp
+use DR\Ipp\Ipp;
+use DR\Ipp\Entity\IppServer;
+use DR\Ipp\Entity\IppPrinter;
+use DR\Ipp\Entity\IppPrintFile;
+use DR\Ipp\Enum\FileTypeEnum;
+use GuzzleHttp\Client as GuzzleClient;
 
 class DocumentController
 {
-    
     public function listDocuments(): void
     {
         $pdo = Database::getInstance();
@@ -157,6 +163,18 @@ class DocumentController
         exit();
     }
 
+    private function getFileTypeEnumFromMimeType(?string $mimeType): FileTypeEnum
+    {
+        return match ($mimeType) {
+            'application/pdf' => FileTypeEnum::PDF,
+            'application/postscript' => FileTypeEnum::PS,
+            'image/jpeg' => FileTypeEnum::JPG,
+            'image/png' => FileTypeEnum::PNG,
+            'application/vnd.hp-PCL' => FileTypeEnum::PCL,
+            default => FileTypeEnum::ZPL, // Octet-stream fallback for text/plain etc.
+        };
+    }
+
     private function sendToPrinter(int $docId): void
     {
         try {
@@ -188,35 +206,49 @@ class DocumentController
                 }
             }
 
-            $printerUri = null;
+            $printerConfig = null;
             if ($printerIdToUse) {
                 foreach ($printers as $printer) {
                     if ($printer['id'] === $printerIdToUse) {
-                        $printerUri = $printer['uri'];
+                        $printerConfig = $printer;
                         break;
                     }
                 }
             }
             
-            if (!$printerUri && !empty($printers[0]['uri'])) {
-                $printerUri = $printers[0]['uri'];
+            if (!$printerConfig && !empty($printers[0])) {
+                $printerConfig = $printers[0];
             }
 
-            if (!$printerUri) throw new \Exception("Impossible de déterminer une imprimante pour le document ID $docId.");
+            if (!$printerConfig) throw new \Exception("Impossible de déterminer une imprimante pour le document ID $docId.");
             
             $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
             if (!file_exists($filePath)) throw new \Exception("Fichier à imprimer non trouvé : " . $filePath);
 
-            // --- NOUVELLE LOGIQUE D'IMPRESSION CORRIGÉE ---
-            $printer = new Printer($printerUri);
-            $fileContent = file_get_contents($filePath);
+            $uriParts = parse_url($printerConfig['uri']);
+            $serverUri = ($uriParts['scheme'] ?? 'http') . '://' . ($uriParts['host'] ?? 'localhost') . ':' . ($uriParts['port'] ?? 631);
+            $printerName = basename($uriParts['path'] ?? 'printer');
 
-            $attributes = ['document-format' => $document['mime_type'] ?: 'application/octet-stream'];
+            $server = new IppServer();
+            $server->setUri($serverUri);
+            $ipp = new Ipp($server, new GuzzleClient(['timeout' => 30, 'verify' => false]));
+
+            $printer = new IppPrinter();
+            $printer->setHostname($printerName);
+
+            $fileType = $this->getFileTypeEnumFromMimeType($document['mime_type']);
+            $ippFile = new IppPrintFile(file_get_contents($filePath), $fileType);
+            $ippFile->setFileName($document['original_filename']);
+
+            $response = $ipp->print($printer, $ippFile);
             
-            $response = $printer->printJob($fileContent, null, $attributes);
-            
-            if (isset($response['job-attributes-tag']['job-id'])) {
-                $jobId = $response['job-attributes-tag']['job-id'];
+            // --- CORRECTION FINALE APPLIQUÉE ICI ---
+            // On récupère le tableau d'attributs, car getAttribute() n'existe pas dans la version 0.2.2
+            $attributes = $response->getAttributes();
+            $jobIdAttribute = $attributes['job-id'] ?? null;
+
+            if ($jobIdAttribute) {
+                $jobId = $jobIdAttribute->getValue();
                 $pdo->prepare("UPDATE documents SET status = 'to_print', print_job_id = ? WHERE id = ?")
                     ->execute([$jobId, $docId]);
                 $this->notifyClients('print_sent', [
@@ -225,7 +257,7 @@ class DocumentController
                     'message' => "Document '" . htmlspecialchars($document['original_filename']) . "' envoyé à l'imprimante."
                 ]);
             } else {
-                throw new \Exception("L'envoi du travail à CUPS a échoué. Réponse invalide de l'imprimante.");
+                throw new \Exception("L'envoi du travail à CUPS a échoué. Job-ID non retourné. " . ($response->getStatusMessage() ?? ''));
             }
         } catch (\Exception $e) {
             error_log("Erreur d'impression (doc ID: $docId): " . $e->getMessage());
