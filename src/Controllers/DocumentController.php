@@ -7,10 +7,13 @@ use App\Core\Database;
 use App\Services\FileUploaderService;
 use PDO;
 use WebSocket\Client as WebSocketClient;
-use Smalot\Cups\Builder\Builder;
-use Smalot\Cups\Manager\JobManager;
 use Smalot\Cups\Model\Job;
+use Smalot\Cups\Manager\JobManager;
+use Smalot\Cups\Manager\PrinterManager;
 use Smalot\Cups\Transport\ResponseParser;
+use Smalot\Cups\Transport\Http\Psr7Transport;
+use Http\Discovery\Psr17FactoryDiscovery;
+use Http\Client\Socket\Client as SocketClient;
 
 class DocumentController
 {
@@ -18,12 +21,25 @@ class DocumentController
     {
         $pdo = Database::getInstance();
         $currentFolderId = isset($_GET['folder_id']) ? (int)$_GET['folder_id'] : null;
-        $foldersStmt = $pdo->query('SELECT id, name FROM folders ORDER BY name ASC');
-        $folders = $foldersStmt->fetchAll();
+        $currentFolder = null;
+
+        if ($currentFolderId) {
+            $folderStmt = $pdo->prepare('SELECT id, name FROM folders WHERE id = ?');
+            $folderStmt->execute([$currentFolderId]);
+            $currentFolder = $folderStmt->fetch();
+        }
+
+        $folders = [];
+        if (!$currentFolderId) {
+            $foldersStmt = $pdo->query('SELECT id, name FROM folders ORDER BY name ASC');
+            $folders = $foldersStmt->fetchAll();
+        }
+        
         $sql = 'SELECT d.id, d.original_filename, d.status, d.created_at, d.parent_document_id, d.folder_id, d.source_account_id FROM documents d WHERE d.deleted_at IS NULL AND d.folder_id ' . ($currentFolderId ? '= ?' : 'IS NULL') . ' ORDER BY d.created_at DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($currentFolderId ? [$currentFolderId] : []);
         $allDocuments = $stmt->fetchAll();
+        
         $documents = [];
         $attachmentsMap = [];
         foreach ($allDocuments as $doc) {
@@ -42,7 +58,6 @@ class DocumentController
         require_once dirname(__DIR__, 2) . '/templates/home.php';
     }
     
-    // ... (autres méthodes inchangées: uploadDocument, getDocumentDetails, downloadDocument, etc.)
     public function uploadDocument(): void
     {
         if (!isset($_FILES['document'])) { header('Location: /?error=nofile'); exit(); }
@@ -163,11 +178,9 @@ class DocumentController
 
             $printerIdToUse = null;
 
-            // Priorité 1: Imprimante du dossier
             if ($document['folder_printer_id']) {
                 $printerIdToUse = $document['folder_printer_id'];
             }
-            // Priorité 2: Imprimante du compte email source
             elseif ($document['source_account_id']) {
                 $mailSettings = json_decode(file_get_contents(dirname(__DIR__, 2) . '/config/mail_settings.json'), true);
                 foreach ($mailSettings as $tenant) {
@@ -180,7 +193,6 @@ class DocumentController
                 }
             }
 
-            // Trouver l'URI de l'imprimante
             $printerUri = null;
             if ($printerIdToUse) {
                 foreach ($printers as $printer) {
@@ -191,7 +203,6 @@ class DocumentController
                 }
             }
             
-            // Priorité 3: Première imprimante de la liste comme fallback
             if (!$printerUri && !empty($printers[0]['uri'])) {
                 $printerUri = $printers[0]['uri'];
             }
@@ -201,8 +212,13 @@ class DocumentController
             $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
             if (!file_exists($filePath)) throw new \Exception("Fichier à imprimer non trouvé : " . $filePath);
 
-            $builder = new Builder();
-            $printerManager = $builder->getPrinterManager();
+            // --- CORRECTION APPLIQUÉE ---
+            // Instanciation manuelle du transport et des managers, car l'API du Builder a changé.
+            $socketClient = new SocketClient();
+            $requestFactory = Psr17FactoryDiscovery::findRequestFactory();
+            $transport = new Psr7Transport($socketClient, $requestFactory);
+            $parser = new ResponseParser();
+            $printerManager = new PrinterManager($parser, $transport);
             $printer = $printerManager->findByUri($printerUri);
 
             if (!$printer) throw new \Exception("Imprimante CUPS non trouvée à l'URI : " . $printerUri);
@@ -211,7 +227,7 @@ class DocumentController
             $job->setName($document['original_filename']);
             $job->setFilePath($filePath);
             
-            $jobManager = new JobManager(new ResponseParser(), $builder->getTransport());
+            $jobManager = new JobManager($parser, $transport);
             $result = $jobManager->send($printer, $job);
             
             if ($result) {

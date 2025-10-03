@@ -5,6 +5,12 @@ namespace App\Controllers;
 
 use App\Core\Database;
 use App\Services\MicrosoftGraphService;
+use Smalot\Cups\Manager\JobManager;
+use Smalot\Cups\Manager\PrinterManager;
+use Smalot\Cups\Transport\ResponseParser;
+use Smalot\Cups\Transport\Http\Psr7Transport;
+use Http\Discovery\Psr17FactoryDiscovery;
+use Http\Client\Socket\Client as SocketClient;
 
 class SettingsController
 {
@@ -20,7 +26,7 @@ class SettingsController
     public function showSettings(): void
     {
         $tenants = $this->loadSettings();
-        $printers = $this->loadPrintSettings(); // Nom de variable mis à jour
+        $printers = $this->loadPrintSettings();
         $pdo = Database::getInstance();
         $stmt = $pdo->query('SELECT id, name, default_printer_id FROM folders ORDER BY name ASC');
         $appFolders = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -39,19 +45,15 @@ class SettingsController
             'uri' => $_POST['printer_uri'] ?? 'ipp://localhost/printers/MyPrinter',
         ];
 
-        // Tente d'ajouter l'imprimante à CUPS via la ligne de commande
-        // Attention : l'utilisateur web (www-data) doit avoir les droits sudo pour lpadmin
         $command = sprintf(
             'sudo lpadmin -p %s -E -v %s -m everywhere',
             escapeshellarg($printerData['name']),
             escapeshellarg($printerData['uri'])
         );
         
-        // CORRECTION: Utilisation de exec() au lieu de shell_exec()
         @exec($command . ' 2>&1', $output, $return_var);
 
         if ($return_var !== 0) {
-            // Même si la commande échoue (droits, etc.), on sauvegarde pour permettre une config manuelle
             error_log("CUPS lpadmin command failed for printer {$printerData['name']}: " . implode("\n", $output));
         }
 
@@ -85,9 +87,7 @@ class SettingsController
             }
             
             if ($printerToDelete) {
-                // Tente de supprimer l'imprimante de CUPS
                 $command = sprintf('sudo lpadmin -x %s', escapeshellarg($printerToDelete['name']));
-                // CORRECTION: Utilisation de exec() au lieu de shell_exec()
                 @exec($command . ' 2>&1', $output, $return_var);
                  if ($return_var !== 0) {
                     error_log("CUPS lpadmin delete command failed for printer {$printerToDelete['name']}: " . implode("\n", $output));
@@ -128,8 +128,12 @@ class SettingsController
             $filePath = sys_get_temp_dir() . '/ged_test_print_' . uniqid() . '.txt';
             file_put_contents($filePath, $testContent);
 
-            $builder = new \Smalot\Cups\Builder\Builder();
-            $printerManager = $builder->getPrinterManager();
+            // --- CORRECTION APPLIQUÉE ---
+            $socketClient = new SocketClient();
+            $requestFactory = Psr17FactoryDiscovery::findRequestFactory();
+            $transport = new Psr7Transport($socketClient, $requestFactory);
+            $parser = new ResponseParser();
+            $printerManager = new PrinterManager($parser, $transport);
             $cupsPrinter = $printerManager->findByUri($printerConfig['uri']);
 
             if (!$cupsPrinter) throw new \Exception("Imprimante CUPS non trouvée à l'URI : " . $printerConfig['uri']);
@@ -138,7 +142,7 @@ class SettingsController
             $job->setName('Test_Page_GED');
             $job->setFilePath($filePath);
             
-            $jobManager = new \Smalot\Cups\Manager\JobManager(new \Smalot\Cups\Transport\ResponseParser(), $builder->getTransport());
+            $jobManager = new JobManager($parser, $transport);
             $result = $jobManager->send($cupsPrinter, $job);
             
             unlink($filePath);
@@ -205,7 +209,6 @@ class SettingsController
         $tenantId = $_POST['tenant_id'] ?? null;
         $accountId = $_POST['account_id'] ?: 'acc_' . time();
         
-        // Mise à jour de la liaison imprimante/dossier
         if (isset($_POST['folder_printers']) && is_array($_POST['folder_printers'])) {
             $pdo = Database::getInstance();
             foreach ($_POST['folder_printers'] as $folderId => $printerId) {
@@ -232,7 +235,7 @@ class SettingsController
             'id' => $accountId,
             'account_name' => $_POST['account_name'] ?? 'Nouveau Compte',
             'user_email' => $_POST['user_email'] ?? '',
-            'default_printer_id' => $_POST['default_printer_id'] ?? null, // Ajout de l'imprimante par défaut pour le compte
+            'default_printer_id' => $_POST['default_printer_id'] ?? null,
             'folders' => $foldersData,
             'automation_rules' => $rulesData
         ];
@@ -355,7 +358,6 @@ class SettingsController
             return [];
         }
         $settings = json_decode(file_get_contents($this->printSettingsFile), true);
-        // Gérer l'ancien format
         if (isset($settings['printer_uri'])) {
             return [
                 [
