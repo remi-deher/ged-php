@@ -32,9 +32,16 @@ switch ($requestUri) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->testPrinter();
         break;
 
-    // NOUVELLE ROUTE POUR LE DASHBOARD D'IMPRESSION
+    // DASHBOARD D'IMPRESSION
     case '/print-queue/status':
         $documentController->getPrintQueueStatus();
+        break;
+    case '/document/cancel-print':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->cancelPrintJob();
+        break;
+    // NOUVELLE ROUTE POUR NETTOYER LES ERREURS
+    case '/document/clear-print-error':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->clearPrintJobError();
         break;
 
     // Routes existantes

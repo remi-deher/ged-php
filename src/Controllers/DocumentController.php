@@ -33,7 +33,8 @@ class DocumentController
             $folders = $foldersStmt->fetchAll();
         }
         
-        $sql = 'SELECT d.id, d.original_filename, d.status, d.created_at, d.parent_document_id, d.folder_id, d.source_account_id FROM documents d WHERE d.deleted_at IS NULL AND d.folder_id ' . ($currentFolderId ? '= ?' : 'IS NULL') . ' ORDER BY d.created_at DESC';
+        // AMÉLIORATION : Ajout de d.size et d.mime_type à la requête
+        $sql = 'SELECT d.id, d.original_filename, d.status, d.created_at, d.parent_document_id, d.folder_id, d.source_account_id, d.size, d.mime_type FROM documents d WHERE d.deleted_at IS NULL AND d.folder_id ' . ($currentFolderId ? '= ?' : 'IS NULL') . ' ORDER BY d.created_at DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($currentFolderId ? [$currentFolderId] : []);
         $allDocuments = $stmt->fetchAll();
@@ -243,6 +244,93 @@ class DocumentController
         header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
         exit();
     }
+    
+    public function cancelPrintJob(): void
+    {
+        header('Content-Type: application/json');
+        if (empty($_POST['doc_id'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ID de document manquant.']);
+            exit();
+        }
+
+        $docId = (int)$_POST['doc_id'];
+        $pdo = Database::getInstance();
+
+        try {
+            $stmt = $pdo->prepare("SELECT print_job_id FROM documents WHERE id = ?");
+            $stmt->execute([$docId]);
+            $jobId = $stmt->fetchColumn();
+
+            if (!$jobId) {
+                throw new \Exception("Aucun travail d'impression actif trouvé pour ce document.");
+            }
+
+            // Commande pour annuler le travail d'impression dans CUPS
+            $command = "cancel " . escapeshellarg($jobId);
+            $output = shell_exec($command . " 2>&1");
+
+            // La commande `cancel` de CUPS ne retourne rien en cas de succès.
+            // Une sortie indique souvent une erreur (ex: le job n'existe plus).
+            if (!empty($output) && strpos(strtolower($output), 'not found') !== false) {
+                 throw new \Exception("Le travail d'impression n'existe plus ou est déjà terminé. " . $output);
+            }
+
+            // Mettre à jour le statut du document pour refléter l'annulation
+            $pdo->prepare("UPDATE documents SET status = 'received', print_job_id = NULL, print_error_message = 'Impression annulée par l''utilisateur.' WHERE id = ?")
+                ->execute([$docId]);
+
+            $this->notifyClients('print_cancelled', ['doc_id' => $docId]);
+
+            echo json_encode(['success' => true, 'message' => 'Le travail d\'impression a été annulé.']);
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            error_log("Erreur d'annulation d'impression (doc ID: $docId): " . $e->getMessage());
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        exit();
+    }
+    
+    /**
+     * NOUVEAU: Gère le nettoyage d'un travail d'impression en erreur
+     */
+    public function clearPrintJobError(): void
+    {
+        header('Content-Type: application/json');
+        if (empty($_POST['doc_id'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ID de document manquant.']);
+            exit();
+        }
+
+        $docId = (int)$_POST['doc_id'];
+        $pdo = Database::getInstance();
+
+        try {
+            // Remet simplement le statut à "reçu" pour le sortir de la file d'attente
+            $stmt = $pdo->prepare(
+                "UPDATE documents 
+                 SET status = 'received', print_job_id = NULL, print_error_message = NULL 
+                 WHERE id = ? AND status = 'print_error'"
+            );
+            $stmt->execute([$docId]);
+
+            if ($stmt->rowCount() === 0) {
+                throw new \Exception("Le document n'était pas en erreur ou n'a pas été trouvé.");
+            }
+
+            $this->notifyClients('print_error_cleared', ['doc_id' => $docId]);
+
+            echo json_encode(['success' => true, 'message' => 'L\'erreur d\'impression a été effacée.']);
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            error_log("Erreur lors du nettoyage de l'erreur d'impression (doc ID: $docId): " . $e->getMessage());
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        exit();
+    }
 
     private function sendToPrinter(int $docId): void
     {
@@ -283,9 +371,8 @@ class DocumentController
             $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
             if (!file_exists($filePath)) throw new \Exception("Fichier à imprimer non trouvé : " . $filePath);
 
-            // --- CORRECTION DÉFINITIVE APPLIQUÉE ICI ---
-            // On extrait le nom système de l'imprimante depuis l'URI.
-            $printerSystemName = basename(parse_url($printerConfig['uri'], PHP_URL_PATH));
+            // On utilise le champ "name" de la configuration, qui est le nom connu par CUPS.
+            $printerSystemName = $printerConfig['name'];
             
             $escapedPrinterName = escapeshellarg($printerSystemName);
             $escapedFilePath = escapeshellarg($filePath);

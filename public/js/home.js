@@ -101,7 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function connectWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        // On se connecte à un CHEMIN "/ws" sur le MÊME domaine, géré par le reverse proxy
         const socketUrl = `${protocol}://${window.location.host}/ws`;
         console.log(`Tentative de connexion au WebSocket sur ${socketUrl}`);
         
@@ -119,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (docRow) {
                         const statusDot = docRow.querySelector('.status-dot');
                         if (statusDot) {
-                            statusDot.style.backgroundColor = '#ffc107';
+                            statusDot.style.backgroundColor = '#ffc107'; // Jaune "À imprimer"
                             statusDot.title = 'À imprimer';
                         }
                     }
@@ -145,28 +144,118 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Gestion du dashboard de la file d'impression ---
     const printQueueBody = document.getElementById('print-queue-body');
+    const printQueueDashboard = document.getElementById('print-queue-dashboard');
+
+    async function handleCancelPrint(event) {
+        const button = event.currentTarget;
+        const row = button.closest('tr');
+        const docId = row.dataset.docId;
+
+        if (!docId || !confirm("Voulez-vous vraiment annuler cette impression ?")) {
+            return;
+        }
+
+        button.disabled = true;
+        button.textContent = '...';
+
+        const formData = new FormData();
+        formData.append('doc_id', docId);
+
+        try {
+            const response = await fetch('/document/cancel-print', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Erreur inconnue');
+            }
+            showToast(data.message, '🗑️');
+            updatePrintQueueDashboard(); // Recharge la file pour être sûr
+            
+            // Met à jour le statut dans la liste principale
+            const mainDocRow = document.querySelector(`.email-row[data-doc-id="${docId}"] .status-dot`);
+            if(mainDocRow) {
+                mainDocRow.style.backgroundColor = '#007bff'; // Bleu "Reçu"
+                mainDocRow.title = 'Reçu (Annulée)';
+            }
+
+        } catch (error) {
+            showToast(`Erreur : ${error.message}`, '⚠️');
+            button.disabled = false;
+            button.textContent = '❌';
+        }
+    }
+    
+    async function handleClearError(event) {
+        const button = event.currentTarget;
+        const row = button.closest('tr');
+        const docId = row.dataset.docId;
+
+        button.disabled = true;
+        button.textContent = '...';
+
+        const formData = new FormData();
+        formData.append('doc_id', docId);
+
+        try {
+            const response = await fetch('/document/clear-print-error', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Erreur inconnue');
+            }
+            showToast(data.message, '✨');
+            updatePrintQueueDashboard(); // Recharge la file
+            
+            // Met à jour le statut dans la liste principale
+            const mainDocRow = document.querySelector(`.email-row[data-doc-id="${docId}"] .status-dot`);
+            if(mainDocRow) {
+                mainDocRow.style.backgroundColor = '#007bff'; // Bleu "Reçu"
+                mainDocRow.title = 'Reçu';
+            }
+
+        } catch (error) {
+            showToast(`Erreur : ${error.message}`, '⚠️');
+            button.disabled = false;
+            button.textContent = '🗑️';
+        }
+    }
 
     async function updatePrintQueueDashboard() {
         try {
             const response = await fetch('/print-queue/status');
             if (!response.ok) {
-                printQueueBody.innerHTML = '<tr><td colspan="4" class="empty-state" style="color: var(--danger-color);">Impossible de récupérer le statut de la file d\'impression.</td></tr>';
+                printQueueDashboard.style.display = 'block';
+                printQueueBody.innerHTML = '<tr><td colspan="5" class="empty-state" style="color: var(--danger-color);">Impossible de récupérer le statut.</td></tr>';
                 return;
             }
+            
             const queue = await response.json();
             const activeQueue = queue.filter(job => job.status !== 'Terminé');
             
-            printQueueBody.innerHTML = '';
-
             if (activeQueue.length > 0) {
+                printQueueDashboard.style.display = 'block';
+                printQueueBody.innerHTML = '';
+
                 activeQueue.forEach(job => {
                     const row = document.createElement('tr');
-                    let statusHtml = `<span>${job.status}</span>`;
-                    
+                    row.dataset.docId = job.id;
+
+                    let statusHtml = '';
+                    let actionHtml = '';
+
                     if (job.status === 'En cours d\'impression') {
-                        statusHtml = `<span style="color: var(--primary-color);">${job.status} ⏳</span>`;
+                        statusHtml = `<span>🖨️ ${job.status}</span>`;
+                        actionHtml = `<button class="button-icon button-delete btn-cancel-print" title="Annuler l'impression">❌</button>`;
                     } else if (job.status === 'Erreur') {
-                        statusHtml = `<span style="color: var(--danger-color); font-weight: bold;">${job.status} ⚠️</span>`;
+                        statusHtml = `<span style="color: var(--danger-color); font-weight: bold;">⚠️ ${job.status}</span>`;
+                        actionHtml = `<button class="button-icon btn-clear-error" title="Effacer l'erreur">🗑️</button>`;
+                    } else { // Statut en attente
+                        statusHtml = `<span>⏳ En attente</span>`;
+                        actionHtml = `<button class="button-icon button-delete btn-cancel-print" title="Annuler l'impression">❌</button>`;
                     }
 
                     row.innerHTML = `
@@ -174,15 +263,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${job.job_id || 'N/A'}</td>
                         <td>${statusHtml}</td>
                         <td>${job.error || 'Aucun détail'}</td>
+                        <td>${actionHtml}</td>
                     `;
                     printQueueBody.appendChild(row);
                 });
+
+                document.querySelectorAll('.btn-cancel-print').forEach(button => {
+                    button.addEventListener('click', handleCancelPrint);
+                });
+                document.querySelectorAll('.btn-clear-error').forEach(button => {
+                    button.addEventListener('click', handleClearError);
+                });
+
             } else {
-                printQueueBody.innerHTML = '<tr><td colspan="4" class="empty-state">La file d\'impression est vide.</td></tr>';
+                printQueueDashboard.style.display = 'none';
+                printQueueBody.innerHTML = '';
             }
         } catch (error) {
             console.error('Erreur lors de la mise à jour du dashboard d\'impression:', error);
-            printQueueBody.innerHTML = '<tr><td colspan="4" class="empty-state" style="color: var(--danger-color);">Erreur lors de la mise à jour du dashboard.</td></tr>';
+            printQueueDashboard.style.display = 'block';
+            printQueueBody.innerHTML = '<tr><td colspan="5" class="empty-state" style="color: var(--danger-color);">Erreur de mise à jour.</td></tr>';
         }
     }
 

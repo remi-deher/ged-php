@@ -1,3 +1,28 @@
+<?php
+// Helper functions pour le formatage
+function formatSizeUnits($bytes) {
+    if ($bytes >= 1073741824) {
+        return number_format($bytes / 1073741824, 2) . ' GB';
+    } elseif ($bytes >= 1048576) {
+        return number_format($bytes / 1048576, 2) . ' MB';
+    } elseif ($bytes >= 1024) {
+        return number_format($bytes / 1024, 2) . ' KB';
+    } elseif ($bytes > 1) {
+        return $bytes . ' bytes';
+    } elseif ($bytes == 1) {
+        return '1 byte';
+    } else {
+        return '0 bytes';
+    }
+}
+
+function getFileIcon($mimeType) {
+    if (str_contains($mimeType, 'pdf')) return '📄';
+    if (str_contains($mimeType, 'image')) return '🖼️';
+    if (str_contains($mimeType, 'word')) return '📝';
+    return '📁'; // Icône par défaut
+}
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -13,7 +38,7 @@
     <div class="container">
         <?php require_once __DIR__ . '/parts/navbar.php'; ?>
 
-        <div id="print-queue-dashboard" class="card">
+        <div id="print-queue-dashboard" class="card" style="display: none;">
             <div class="card-header">
                 <h2>🖨️ File d'impression en cours</h2>
             </div>
@@ -25,13 +50,11 @@
                             <th>Job ID</th>
                             <th>Statut</th>
                             <th>Détails</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="print-queue-body">
-                        <tr>
-                            <td colspan="4" class="empty-state">Chargement du statut de la file d'impression...</td>
-                        </tr>
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
         </div>
@@ -98,6 +121,9 @@
                             <th class="col-checkbox"><input type="checkbox" id="select-all-checkbox" title="Tout sélectionner"></th>
                             <th class="col-status">Statut</th>
                             <th>Nom du fichier</th>
+                            <th>Source</th>
+                            <th>Taille</th>
+                            <th>Date d'ajout</th>
                             <th class="col-actions">Actions</th>
                         </tr>
                     </thead>
@@ -120,7 +146,17 @@
                                         <span class="status-dot" style="background-color: <?= $status_map[$doc['status']]['color'] ?? '#6c757d' ?>;" title="<?= $status_map[$doc['status']]['label'] ?? 'Inconnu' ?>"></span>
                                     </td>
                                     <td>
+                                        <span style="font-size: 1.2em; margin-right: 8px;"><?= getFileIcon($doc['mime_type'] ?? '') ?></span>
                                         <strong><?= htmlspecialchars($doc['original_filename']) ?></strong>
+                                    </td>
+                                    <td>
+                                        <?= $doc['source_account_id'] ? '📧 E-mail' : '📥 Manuel' ?>
+                                    </td>
+                                    <td>
+                                        <?= formatSizeUnits($doc['size']) ?>
+                                    </td>
+                                    <td>
+                                        <?= date('d/m/Y H:i', strtotime($doc['created_at'])) ?>
                                     </td>
                                     <td class="col-actions">
                                         <div class="document-actions">
@@ -138,7 +174,7 @@
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="4" class="empty-state">
+                                <td colspan="7" class="empty-state">
                                     <?= (isset($currentFolder) && $currentFolder) ? 'Ce dossier est vide.' : 'Aucun document à la racine.'; ?>
                                 </td>
                             </tr>
