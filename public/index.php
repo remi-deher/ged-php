@@ -10,6 +10,8 @@ use App\Controllers\DocumentController;
 use App\Controllers\SettingsController;
 
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+
+// On instancie les contrôleurs qui gèrent les routes
 $documentController = new DocumentController();
 $settingsController = new SettingsController();
 
@@ -21,7 +23,7 @@ switch ($requestUri) {
     // Réglages
     case '/settings': $settingsController->showSettings(); break;
     
-    // Nouvelles routes pour les imprimantes
+    // Actions sur les imprimantes (gérées par SettingsController)
     case '/settings/printer/save':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->savePrinter();
         break;
@@ -32,19 +34,7 @@ switch ($requestUri) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->testPrinter();
         break;
 
-    // DASHBOARD D'IMPRESSION
-    case '/print-queue/status':
-        $documentController->getPrintQueueStatus();
-        break;
-    case '/document/cancel-print':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->cancelPrintJob();
-        break;
-    // NOUVELLE ROUTE POUR NETTOYER LES ERREURS
-    case '/document/clear-print-error':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->clearPrintJobError();
-        break;
-
-    // Routes existantes
+    // Actions sur les tenants et comptes (gérées par SettingsController)
     case '/settings/tenant/save':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->saveTenant();
         break;
@@ -64,7 +54,7 @@ switch ($requestUri) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->ajaxCreateFolder();
         break;
         
-    // Actions sur les documents
+    // Actions sur les documents (gérées par DocumentController)
     case '/upload':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->uploadDocument();
         break;
@@ -74,15 +64,14 @@ switch ($requestUri) {
     case '/document/download':
         if (isset($_GET['id'])) $documentController->downloadDocument((int)$_GET['id']);
         break;
-    case '/document/update-status':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->updateDocumentStatus();
+    case '/document/move':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->moveDocument();
         break;
-    case '/document/print':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->printSingleDocument();
+    case '/folder/create':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->createFolder();
         break;
-    case '/document/bulk-print':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->printBulkDocuments();
-        break;
+
+    // Actions sur la corbeille (gérées par DocumentController)
     case '/document/delete':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->moveToTrash();
         break;
@@ -92,14 +81,22 @@ switch ($requestUri) {
     case '/document/force-delete':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->forceDelete();
         break;
-    case '/folder/create':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->createFolder();
+        
+    // Actions sur la file d'impression (gérées par DocumentController)
+    case '/print-queue/status': // CORRIGÉ
+        $documentController->getPrintQueueStatus();
         break;
-    case '/document/move':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->moveDocument();
+    case '/document/print':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->printSingleDocument();
         break;
-    case '/folder/move':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->moveFolder();
+    case '/document/bulk-print':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->printBulkDocuments();
+        break;
+    case '/document/cancel-print': // CORRIGÉ
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->cancelPrintJob();
+        break;
+    case '/document/clear-print-error': // CORRIGÉ
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->clearPrintJobError();
         break;
         
     default:

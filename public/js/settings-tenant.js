@@ -1,15 +1,32 @@
 // public/js/settings-tenant.js
 
-document.addEventListener('DOMContentLoaded', () => {
+// Utilisation de 'var' pour permettre l'extension de l'objet sur plusieurs fichiers
+var GED = window.GED || {};
 
-    // --- Gestion des Imprimantes ---
-    const printerModal = document.getElementById('printer-modal');
-    if (printerModal) {
-        const printerForm = document.getElementById('printer-form');
-        
-        const openPrinterModal = (printer = null) => {
-            document.getElementById('printer-modal-title').innerText = printer ? 'Modifier l\'imprimante' : 'Ajouter une imprimante';
-            printerForm.innerHTML = `
+GED.settings = {
+    init() {
+        this.printers.init();
+        this.tenants.init();
+        this.accounts.init();
+        this.modals.init();
+    },
+
+    printers: {
+        init() {
+            const printerModal = document.getElementById('printer-modal');
+            if (!printerModal) return;
+
+            this.printerForm = document.getElementById('printer-form');
+            
+            document.getElementById('btn-show-printer-form')?.addEventListener('click', () => this.openModal());
+
+            document.querySelectorAll('.btn-test-printer').forEach(btn => {
+                btn.addEventListener('click', (e) => this.testPrinter(e.currentTarget));
+            });
+        },
+        openModal(printer = null) {
+            document.getElementById('printer-modal-title').innerText = printer ? "Modifier l'imprimante" : "Ajouter une imprimante";
+            this.printerForm.innerHTML = `
                 <input type="hidden" name="printer_id" value="${printer?.id || ''}">
                 <div class="form-group">
                     <label>Nom de l'imprimante</label>
@@ -31,73 +48,61 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button type="submit" class="button">💾 Enregistrer</button>
                 </div>
             `;
-            printerModal.style.display = 'flex';
-        };
-
-        document.getElementById('btn-show-printer-form').addEventListener('click', () => {
-            openPrinterModal();
-        });
-
-        // Note: La logique pour éditer une imprimante n'était pas présente, elle pourrait être ajoutée ici si besoin.
-
-        document.querySelectorAll('.btn-test-printer').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const button = e.currentTarget;
-                const printerId = button.dataset.printerId;
-                const originalText = button.innerHTML;
-
-                button.innerHTML = '⏳'; // Spinner emoji
-                button.disabled = true;
+            document.getElementById('printer-modal').style.display = 'flex';
+        },
+        async testPrinter(button) {
+            const printerId = button.dataset.printerId;
+            const originalText = button.innerHTML;
+            button.innerHTML = '⏳';
+            button.disabled = true;
+            
+            try {
+                const formData = new FormData();
+                formData.append('printer_id', printerId);
+                const response = await fetch('/settings/printer/test', { method: 'POST', body: formData });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Erreur inconnue');
                 
-                try {
-                    // On doit créer un FormData pour envoyer l'ID de l'imprimante
-                    const formData = new FormData();
-                    formData.append('printer_id', printerId);
+                button.innerHTML = '✅';
+                alert('Succès : ' + data.message);
 
-                    const response = await fetch('/settings/printer/test', { method: 'POST', body: formData });
-                    const data = await response.json();
-                    if (!response.ok) throw new Error(data.error || 'Erreur inconnue');
-                    
-                    button.innerHTML = '✅';
-                    alert('Succès : ' + data.message);
-
-                } catch (error) {
-                    alert('Erreur : ' + error.message);
-                    button.innerHTML = '🧪'; // Retour à l'icône de test en cas d'erreur
-                } finally {
-                    setTimeout(() => {
-                        button.innerHTML = originalText;
-                        button.disabled = false;
-                    }, 3000);
-                }
-            });
-        });
-    }
-
-    // --- Gestion des Tenants et Comptes ---
-    document.querySelectorAll('.tenant-header').forEach(header => {
-        header.addEventListener('click', (e) => {
-            if (e.target.closest('button')) return;
-            const card = header.closest('.tenant-card');
-            const buttonText = header.querySelector('.btn-text');
-            card.classList.toggle('is-open');
-            if (card.classList.contains('is-open')) {
-                buttonText.textContent = 'Fermer ▲';
-            } else {
-                buttonText.textContent = 'Gérer ▼';
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+                button.innerHTML = '🧪';
+            } finally {
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }, 3000);
             }
-        });
-    });
+        }
+    },
 
-    const tenantModal = document.getElementById('tenant-modal');
-    if (tenantModal) {
-        const tenantForm = document.getElementById('tenant-form');
-        document.getElementById('btn-show-tenant-form').addEventListener('click', () => openTenantModal());
-        document.querySelectorAll('.btn-edit-tenant').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openTenantModal(JSON.parse(btn.dataset.tenant)); }));
+    tenants: {
+        init() {
+            document.querySelectorAll('.tenant-header').forEach(header => {
+                header.addEventListener('click', (e) => {
+                    if (e.target.closest('button')) return;
+                    const card = header.closest('.tenant-card');
+                    card.classList.toggle('is-open');
+                    const buttonText = header.querySelector('.btn-text');
+                    if (buttonText) buttonText.textContent = card.classList.contains('is-open') ? 'Fermer ▲' : 'Gérer ▼';
+                });
+            });
 
-        const openTenantModal = (tenant = null) => {
+            const tenantModal = document.getElementById('tenant-modal');
+            if(tenantModal) {
+                const tenantForm = document.getElementById('tenant-form');
+                document.getElementById('btn-show-tenant-form')?.addEventListener('click', () => this.openModal(tenantForm));
+                document.querySelectorAll('.btn-edit-tenant').forEach(btn => btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.openModal(tenantForm, JSON.parse(btn.dataset.tenant));
+                }));
+            }
+        },
+        openModal(form, tenant = null) {
             document.getElementById('tenant-modal-title').innerText = tenant ? 'Gérer le Tenant' : 'Ajouter un nouveau Tenant';
-            tenantForm.innerHTML = `
+            form.innerHTML = `
                 <input type="hidden" name="tenant_id" value="${tenant?.tenant_id || ''}">
                 <div class="form-group"><label>Nom du Tenant</label><div class="input-group"><span>🏢</span><input style="padding-left: 30px;" type="text" name="tenant_name" value="${tenant?.tenant_name || ''}" required></div></div>
                 <h3>Paramètres Microsoft Graph</h3>
@@ -106,17 +111,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="form-group"><label>Secret Client</label><div class="input-group"><span>🔒</span><input style="padding-left: 30px;" type="password" name="graph_client_secret" placeholder="${tenant ? 'Laissez vide pour ne pas modifier' : ''}" autocomplete="new-password"></div></div>
                 <div class="form-actions">${tenant ? `<form action="/settings/tenant/delete" method="POST" onsubmit="return confirm('Supprimer ce tenant et tous ses comptes ?')"><input type="hidden" name="tenant_id" value="${tenant.tenant_id}"><button type="submit" class="button button-delete">Supprimer</button></form>` : '<span></span>'}<button type="submit" class="button">💾 Enregistrer</button></div>
             `;
-            tenantModal.style.display = 'flex';
-        };
-    }
+            document.getElementById('tenant-modal').style.display = 'flex';
+        }
+    },
+    
+    accounts: {
+        init() {
+            const accountModal = document.getElementById('account-modal');
+            if(!accountModal) return;
 
-    const accountModal = document.getElementById('account-modal');
-    if(accountModal) {
-        const accountForm = document.getElementById('account-form');
-        let currentTenantIdForAccount = null;
-
-        const openAccountModal = (tenantId, account = null) => {
-            currentTenantIdForAccount = tenantId;
+            this.accountForm = document.getElementById('account-form');
+            document.querySelectorAll('.btn-add-account').forEach(btn => btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openModal(btn.dataset.tenantId);
+            }));
+            document.querySelectorAll('.btn-edit-account').forEach(btn => btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openModal(btn.dataset.tenantId, JSON.parse(btn.dataset.account));
+            }));
+        },
+        openModal(tenantId, account = null) {
+            this.currentTenantIdForAccount = tenantId;
             document.getElementById('account-modal-title').innerText = account ? 'Modifier la boîte mail' : 'Ajouter une boîte mail';
 
             let printerOptions = '<option value="">-- Imprimante par défaut --</option>';
@@ -125,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 printerOptions += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
             });
 
-            accountForm.innerHTML = `
+            this.accountForm.innerHTML = `
                 <input type="hidden" name="tenant_id" value="${tenantId}"><input type="hidden" name="account_id" value="${account?.id || ''}">
                 <div class="form-group"><label>Nom du compte</label><div class="input-group"><span>🏷️</span><input style="padding-left: 30px;" type="text" id="account_name" name="account_name" value="${account?.account_name || ''}" required></div></div>
                 <div class="form-group"><label>Adresse e-mail</label><div class="input-group"><span>@</span><input style="padding-left: 30px;" type="email" id="user_email" name="user_email" value="${account?.user_email || ''}" required></div></div>
@@ -141,38 +156,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div id="automation-rules-area"><h3>🤖 Règles d'impression automatique</h3><div id="rules-list"></div><button type="button" class="button button-secondary" id="btn-add-rule">➕ Ajouter une règle</button></div>
                 <div class="form-actions">${account ? `<form action="/settings/account/delete" method="POST" onsubmit="return confirm('Supprimer ce compte ?')"><input type="hidden" name="tenant_id" value="${tenantId}"><input type="hidden" name="account_id" value="${account.id}"><button type="submit" class="button button-delete">Supprimer</button></form>` : '<span></span>'}<button type="submit" class="button" id="btn-save-account">💾 Enregistrer</button></div>
             `;
-            if (account?.folders?.length) renderFolderList(account.folders, account.folders);
-            if (account?.automation_rules?.length) renderAutomationRules(account.automation_rules);
-            accountModal.style.display = 'flex';
-            document.getElementById('btn-list-folders').addEventListener('click', () => listFolders(account?.folders || []));
-            document.getElementById('btn-add-rule').addEventListener('click', () => addRule());
-            accountForm.addEventListener('submit', prepareFormForSubmit);
-        };
 
-        document.querySelectorAll('.btn-add-account').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openAccountModal(btn.dataset.tenantId); }));
-        document.querySelectorAll('.btn-edit-account').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openAccountModal(btn.dataset.tenantId, JSON.parse(btn.dataset.account)); }));
-
-        const listFolders = async (selectedMappings = []) => {
+            // On ré-attache les listeners après avoir injecté le HTML
+            document.getElementById('btn-list-folders').addEventListener('click', () => this.listFolders(account?.folders || []));
+            document.getElementById('btn-add-rule').addEventListener('click', () => this.addRule());
+            this.accountForm.addEventListener('submit', (e) => this.prepareFormForSubmit(e));
+            
+            // On affiche les listes si des données existent déjà
+            if (account?.folders?.length) this.renderFolderList(account.folders, account.folders);
+            if (account?.automation_rules?.length) this.renderAutomationRules(account.automation_rules);
+            
+            document.getElementById('account-modal').style.display = 'flex';
+        },
+        async listFolders(selectedMappings = []) {
             const btn = document.getElementById('btn-list-folders'), folderMsg = document.getElementById('folder-message'), userEmail = document.getElementById('user_email').value;
             if (!userEmail) { folderMsg.className = 'feedback-message error'; folderMsg.innerText = "Veuillez d'abord saisir une adresse e-mail."; return; }
             btn.classList.add('loading'); btn.disabled = true; folderMsg.innerText = ''; folderMsg.className = '';
+            
             const formData = new FormData();
-            formData.append('tenant_id', currentTenantIdForAccount); formData.append('user_email', userEmail);
+            formData.append('tenant_id', this.currentTenantIdForAccount); 
+            formData.append('user_email', userEmail);
+            
             try {
                 const response = await fetch('/settings/ajax/list-folders', { method: 'POST', body: formData });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error);
                 folderMsg.className = 'feedback-message success';
                 folderMsg.innerText = `Connexion réussie ! ${data.folders.length} dossiers trouvés.`;
-                renderFolderList(data.folders, selectedMappings);
+                this.renderFolderList(data.folders, selectedMappings);
             } catch (error) {
                 folderMsg.className = 'feedback-message error'; folderMsg.innerText = `Erreur : ${error.message}`;
             } finally {
                 btn.classList.remove('loading'); btn.disabled = false;
             }
-        };
-
-        const renderFolderList = (foldersFromApi, selectedMappings = []) => {
+        },
+        renderFolderList(foldersFromApi, selectedMappings = []) {
             const container = document.getElementById('folder-list');
             if (foldersFromApi.length === 0) { container.innerHTML = '<p style="text-align:center; color:#6c757d;">Aucun dossier retourné par l\'API.</p>'; return; }
             
@@ -215,15 +233,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.querySelectorAll('select').forEach(sel => sel.disabled = !e.target.checked);
             }));
             container.querySelectorAll('.destination-folder-select').forEach(sel => sel.addEventListener('change', (e) => {
-                handleFolderCreation(e);
+                this.handleFolderCreation(e);
                 const row = e.target.closest('tr');
                 const printerSelect = row.querySelector('.folder-printer-select');
                 printerSelect.name = `folder_printers[${e.target.value}]`;
                 printerSelect.disabled = e.target.value === 'root' || e.target.value === 'new_folder';
             }));
-        };
-
-        const handleFolderCreation = async (e) => {
+        },
+        async handleFolderCreation(e) {
             if (e.target.value !== 'new_folder') return;
             const newName = prompt("Entrez le nom du nouveau dossier :");
             if (!newName?.trim()) { e.target.value = 'root'; return; }
@@ -246,14 +263,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
                 sel.disabled = false;
             }
-        };
-
-        const renderAutomationRules = (rules) => {
+        },
+        renderAutomationRules(rules) {
             document.getElementById('rules-list').innerHTML = '';
-            rules.forEach(rule => addRule(rule));
-        };
-
-        const addRule = (rule = null) => {
+            rules.forEach(rule => this.addRule(rule));
+        },
+        addRule(rule = null) {
             const ruleId = rule?.rule_id || `rule_${Date.now()}`;
             const ruleDiv = document.createElement('div');
             ruleDiv.className = 'automation-rule';
@@ -265,15 +280,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('rules-list').appendChild(ruleDiv);
             const condContainer = ruleDiv.querySelector('.rule-conditions');
             if (rule?.conditions?.length) {
-                rule.conditions.forEach(cond => addCondition(condContainer, cond));
+                rule.conditions.forEach(cond => this.addCondition(condContainer, cond));
             } else {
-                addCondition(condContainer);
+                this.addCondition(condContainer);
             }
             ruleDiv.querySelector('.btn-remove-rule').addEventListener('click', () => ruleDiv.remove());
-            ruleDiv.querySelector('.btn-add-condition').addEventListener('click', (e) => addCondition(condContainer));
-        };
-
-        const addCondition = (container, condition = null) => {
+            ruleDiv.querySelector('.btn-add-condition').addEventListener('click', () => this.addCondition(condContainer));
+        },
+        addCondition(container, condition = null) {
             const condDiv = document.createElement('div');
             condDiv.className = 'rule-condition';
             condDiv.innerHTML = `
@@ -283,12 +297,11 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             container.appendChild(condDiv);
             condDiv.querySelector('.btn-remove-condition').addEventListener('click', () => condDiv.remove());
-        };
-
-        const prepareFormForSubmit = (e) => {
-            accountForm.querySelectorAll('input[name="folders[]"], input[name^="folder_printers"], input[name="automation_rules"]').forEach(el => el.remove());
+        },
+        prepareFormForSubmit(e) {
+            this.accountForm.querySelectorAll('input[name="folders[]"], input[name^="folder_printers"], input[name="automation_rules"]').forEach(el => el.remove());
             
-            document.querySelectorAll('.table tbody tr').forEach(row => {
+            document.querySelectorAll('#folder-list .table tbody tr').forEach(row => {
                 if (row.querySelector('.folder-checkbox:checked')) {
                     const mapping = { 
                         id: row.dataset.folderId, 
@@ -299,7 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     input.type = 'hidden'; 
                     input.name = 'folders[]'; 
                     input.value = JSON.stringify(mapping);
-                    accountForm.appendChild(input);
+                    this.accountForm.appendChild(input);
                 }
             });
 
@@ -309,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     input.type = 'hidden';
                     input.name = select.name;
                     input.value = select.value;
-                    accountForm.appendChild(input);
+                    this.accountForm.appendChild(input);
                 }
             });
 
@@ -323,22 +336,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const rulesInput = document.createElement('input');
             rulesInput.type = 'hidden'; rulesInput.name = 'automation_rules'; rulesInput.value = JSON.stringify(rules);
-            accountForm.appendChild(rulesInput);
-        };
-    }
-    
-    // --- Logique commune de fermeture des modales ---
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.style.display = 'none';
-            }
-        });
-        const closeButton = modal.querySelector('.modal-close');
-        if (closeButton) {
-            closeButton.addEventListener('click', () => {
-                modal.style.display = 'none';
+            this.accountForm.appendChild(rulesInput);
+        }
+    },
+
+    modals: {
+        init() {
+            document.querySelectorAll('.modal-overlay').forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) modal.style.display = 'none';
+                });
+                modal.querySelector('.modal-close')?.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                });
             });
         }
-    });
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    GED.settings.init();
 });

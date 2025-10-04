@@ -235,6 +235,16 @@ $currentFolderId = $_GET['folder_id'] ?? null;
         <li data-action="delete" class="separator">🗑️ Mettre à la corbeille</li>
     </ul>
     <div id="toast-container"></div>
-    <script src="/js/home.js"></script>
-</body>
+    
+    <script src="/js/app.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/home/sidebar.js"></script>
+    <script src="/js/home/modal.js"></script>
+    <script src="/js/home/contextMenu.js"></script>
+    <script src="/js/home/selection.js"></script>
+    <script src="/js/home/viewSwitcher.js"></script>
+    <script src="/js/home/dnd.js"></script>
+    <script src="/js/home/printQueue.js"></script>
+    <script src="/js/home/websocket.js"></script>
+    <script src="/js/home/main.js"></script> </body>
 </html>

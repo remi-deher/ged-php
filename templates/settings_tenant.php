@@ -135,6 +135,12 @@
         window.appFolders = <?= json_encode($appFolders ?? [], JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         window.printers = <?= json_encode($printers ?? [], JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     </script>
-    <script src="/js/settings-tenant.js"></script>
-</body>
+    
+    <script src="/js/app.js"></script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/settings/printers.js"></script>
+    <script src="/js/settings/tenants.js"></script>
+    <script src="/js/settings/accounts.js"></script>
+    <script src="/js/settings/modals.js"></script>
+    <script src="/js/settings/main.js"></script> </body>
 </html>
