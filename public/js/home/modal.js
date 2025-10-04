@@ -10,6 +10,9 @@ GED.home.modal = {
         this.titleEl = document.getElementById('modal-title');
         this.attachmentsListEl = document.getElementById('modal-attachments-list');
         this.previewIframeEl = document.getElementById('modal-preview-iframe');
+        // Nouveaux éléments à cibler
+        this.previewDocTitleEl = document.getElementById('preview-doc-title');
+        this.previewNewTabBtn = document.getElementById('preview-new-tab');
         
         this.modalEl.querySelector('.modal-close')?.addEventListener('click', () => this.close());
         this.modalEl.addEventListener('click', (e) => {
@@ -32,6 +35,9 @@ GED.home.modal = {
         this.titleEl.textContent = 'Chargement...';
         this.attachmentsListEl.innerHTML = '<li>Chargement...</li>';
         this.previewIframeEl.src = 'about:blank';
+        // Réinitialiser les éléments de l'en-tête de l'aperçu
+        if(this.previewDocTitleEl) this.previewDocTitleEl.textContent = '';
+        if(this.previewNewTabBtn) this.previewNewTabBtn.href = '#';
 
         try {
             const response = await fetch(`/document/details?id=${docId}`);
@@ -39,7 +45,14 @@ GED.home.modal = {
             const data = await response.json();
             
             this.titleEl.textContent = data.main_document.original_filename;
-            this.previewIframeEl.src = `/document/download?id=${data.main_document.id}`;
+            
+            // MODIFICATION : Utiliser la route /document/preview
+            this.previewIframeEl.src = `/document/preview?id=${data.main_document.id}`;
+
+            // Mise à jour de l'en-tête de la prévisualisation
+            if(this.previewDocTitleEl) this.previewDocTitleEl.textContent = data.main_document.original_filename;
+            if(this.previewNewTabBtn) this.previewNewTabBtn.href = `/document/preview?id=${data.main_document.id}`;
+
 
             const attachmentsPanel = document.getElementById('modal-attachments');
             const attachmentsToggleBtn = document.getElementById('modal-attachments-toggle-btn');
@@ -51,6 +64,7 @@ GED.home.modal = {
                     this.attachmentsListEl.innerHTML = '';
                     data.attachments.forEach(attachment => {
                         const li = document.createElement('li');
+                        // Le lien pour les pièces jointes reste un lien de téléchargement direct
                         li.innerHTML = `📄 <a href="/document/download?id=${attachment.id}" target="_blank" title="${attachment.original_filename}">${attachment.original_filename}</a>`;
                         this.attachmentsListEl.appendChild(li);
                     });

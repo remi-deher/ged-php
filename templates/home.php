@@ -289,7 +289,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                         <i class="fas fa-external-link-alt"></i> Ouvrir dans un nouvel onglet
                     </a>
                 </div>
-                <iframe id="modal-preview-iframe" class="modal-preview-iframe" sandbox="allow-same-origin"></iframe>
+		 <iframe id="modal-preview-iframe" class="modal-preview-iframe"></iframe>
             </div>
         </div>
     </div>

@@ -64,6 +64,10 @@ switch ($requestUri) {
     case '/document/download':
         if (isset($_GET['id'])) $documentController->downloadDocument((int)$_GET['id']);
         break;
+    // AJOUT DE LA NOUVELLE ROUTE
+    case '/document/preview':
+        if (isset($_GET['id'])) $documentController->previewDocument((int)$_GET['id']);
+        break;
     case '/document/move':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->moveDocument();
         break;

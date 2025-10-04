@@ -8,6 +8,7 @@ use App\Services\FolderService;
 use App\Services\FileUploaderService;
 use App\Services\PrintService;
 use App\Services\TrashService;
+use App\Services\PreviewService; // Ajout de l'import
 use App\Repositories\DocumentRepository;
 use App\Repositories\FolderRepository;
 use WebSocket\Client as WebSocketClient;
@@ -19,6 +20,7 @@ class DocumentController
     private FolderService $folderService;
     private PrintService $printService;
     private TrashService $trashService;
+    private PreviewService $previewService; // Ajout de la propriété
     private DocumentRepository $documentRepository;
     private FolderRepository $folderRepository;
 
@@ -28,6 +30,7 @@ class DocumentController
         $this->folderService = new FolderService();
         $this->printService = new PrintService();
         $this->trashService = new TrashService();
+        $this->previewService = new PreviewService(); // Instanciation du service
         $this->documentRepository = new DocumentRepository();
         $this->folderRepository = new FolderRepository();
     }
@@ -65,6 +68,35 @@ class DocumentController
             return;
         }
         echo json_encode($details);
+    }
+
+    /**
+     * Gère la prévisualisation des documents, avec conversion à la volée.
+     */
+    public function previewDocument(int $docId): void
+    {
+        try {
+            $preview = $this->previewService->getPreview($docId);
+
+            // Supprime l'en-tête X-Frame-Options ajoutée par le reverse proxy
+            header_remove('X-Frame-Options');
+
+            header('Content-Type: ' . $preview['mimeType']);
+            header('Content-Disposition: inline; filename="' . basename($preview['fileName']) . '"');
+            header('Content-Length: ' . filesize($preview['filePath']));
+            readfile($preview['filePath']);
+            exit;
+        } catch (\RuntimeException $e) {
+            // Afficher un message d'erreur clair en cas de problème
+            http_response_code($e->getCode() ?: 500);
+            echo "<h1>Erreur de prévisualisation</h1>";
+            echo "<p>Impossible de générer un aperçu pour ce document.</p>";
+            echo "<p><strong>Détail :</strong> " . htmlspecialchars($e->getMessage()) . "</p>";
+            if ($e->getCode() === 500) {
+                 echo "<p><strong>Note :</strong> Pour les documents Word, Excel, etc., assurez-vous que LibreOffice est bien installé sur le serveur et accessible par l'utilisateur du serveur web (`www-data`).</p>";
+            }
+            exit;
+        }
     }
 
     // --- Actions sur les dossiers et documents ---
@@ -191,8 +223,9 @@ class DocumentController
             http_response_code(404); 
             die('File not found on server.'); 
         }
-        header('Content-Type: ' . $doc['mime_type']);
-        header('Content-Disposition: inline; filename="' . basename($doc['original_filename']) . '"');
+        // Force le téléchargement au lieu de l'affichage
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . basename($doc['original_filename']) . '"');
         header('Content-Length: ' . filesize($filePath));
         readfile($filePath);
         exit;
