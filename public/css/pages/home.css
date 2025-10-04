@@ -16,48 +16,16 @@
     padding: 1rem;
     overflow-y: auto; /* Permet le défilement si la liste de dossiers est longue */
 }
-.sidebar-nav ul li a {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px;
-    border-radius: 4px;
-    color: var(--text-color);
-    font-weight: 500;
-}
-.sidebar-nav ul li.active a, .sidebar-nav ul li a:hover {
-    background-color: var(--primary-color);
-    color: white;
-}
-.sidebar-separator {
-    height: 1px;
-    background-color: var(--border-color);
-    margin: 1rem 0;
-}
-.folder-tree ul {
-    list-style: none;
-    padding: 0;
-}
-.folder-tree ul ul {
-    padding-left: 20px; 
-    border-left: 1px solid var(--border-color);
-    margin-left: 10px;
-}
-.folder-tree li a {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 10px;
-    border-radius: 4px;
-    color: var(--text-color);
-}
-.folder-tree li.active > a {
-    background-color: #d1e7fd;
-    font-weight: bold;
-}
-.folder-tree li a:hover {
-    background-color: #e0e0e0;
-}
+/* ... (styles de la barre de gauche existants) ... */
+.sidebar-nav ul li a { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 4px; color: var(--text-color); font-weight: 500; }
+.sidebar-nav ul li.active a, .sidebar-nav ul li a:hover { background-color: var(--primary-color); color: white; }
+.sidebar-separator { height: 1px; background-color: var(--border-color); margin: 1rem 0; }
+.folder-tree ul { list-style: none; padding: 0; }
+.folder-tree ul ul { padding-left: 20px; border-left: 1px solid var(--border-color); margin-left: 10px; }
+.folder-tree li a { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 4px; color: var(--text-color); }
+.folder-tree li.active > a { background-color: #d1e7fd; font-weight: bold; }
+.folder-tree li a:hover { background-color: #e0e0e0; }
+
 
 /* --- Contenu Principal --- */
 .main-content {
@@ -65,12 +33,8 @@
     padding: 1.5rem;
     overflow-y: auto; /* Permet le défilement du contenu principal uniquement */
 }
-.content-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-}
+/* ... (styles du contenu principal existants) ... */
+.content-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
 .breadcrumb h1 { font-size: 1.5rem; display: flex; align-items: center; gap: 8px; }
 .breadcrumb a { color: var(--text-color); }
 .breadcrumb a:hover { color: var(--primary-color); }
@@ -79,24 +43,16 @@
 .create-folder-form input { border-radius: 4px 0 0 4px; border-right: none; }
 .create-folder-form button { border-radius: 0 4px 4px 0; }
 .upload-form label { white-space: nowrap; }
-
-.card.files-list-card {
-    border: none;
-    box-shadow: none;
-    background: none;
-}
-.files-list-card .card-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0; 
-    border-bottom: none;
-    margin-bottom: 1rem;
-}
+.card.files-list-card { border: none; box-shadow: none; background: none; }
+.files-list-card .card-header { display: flex; justify-content: space-between; align-items: center; padding: 0; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem; padding-bottom: 1rem; }
+.header-main-actions { display: flex; align-items: center; gap: 1rem; }
+.filter-bar { display: flex; align-items: center; gap: 1rem; }
+.filter-group { display: flex; align-items: center; gap: 0.5rem; }
+.filter-group label { font-weight: 500; color: var(--text-muted); font-size: 0.9rem; }
+.filter-group select { padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); background-color: #fff; font-size: 0.9rem; }
+.filter-group select:focus { outline: none; border-color: var(--primary-color); }
 .files-list-card .card-body { padding: 0; }
-.empty-state {
-    text-align: center;
-    padding: 4rem;
-    color: var(--text-muted);
-}
+.empty-state { text-align: center; padding: 4rem; color: var(--text-muted); }
 
 /* --- Table des documents --- */
 .documents-table .col-checkbox { width: 40px; }
@@ -104,64 +60,24 @@
 .documents-table .col-size { width: 120px; text-align: right; }
 .documents-table .col-date { width: 160px; text-align: right; }
 .documents-table .col-actions { width: 100px; text-align: right; }
-
 .folder-row { cursor: pointer; }
 .folder-icon-color { color: var(--primary-color); }
 .folder-link { color: var(--text-color); font-weight: 500; display: block; padding: 12px 0; }
 .document-row { cursor: pointer; }
 .document-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.status-dot {
-    display: inline-block; width: 10px; height: 10px;
-    border-radius: 50%; margin-right: 8px;
-}
+.status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
 
-/* --- Vue Grille --- */
-.grid-view-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 1.5rem;
-}
-.grid-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    padding: 1rem;
-    cursor: pointer;
-    transition: all .2s;
-    text-align: center;
-    color: var(--text-color);
-}
-.grid-item:hover {
-    background-color: var(--primary-color);
-    color: white;
-    box-shadow: 0 4px 12px rgba(0,0,0,.1);
-    transform: translateY(-5px);
-}
+/* ... (autres styles existants : vue grille, drag & drop, etc.) ... */
+.grid-view-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1.5rem; }
+.grid-item { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 8px; padding: 1rem; cursor: pointer; transition: all .2s; text-align: center; color: var(--text-color); }
+.grid-item:hover { background-color: var(--primary-color); color: white; box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-5px); }
 .grid-item:hover .grid-item-thumbnail i { color: white; }
 .grid-item.dragging { opacity: .4; }
-.grid-item-thumbnail {
-    height: 80px;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: .5rem;
-    font-size: 3.5rem;
-}
-.grid-item-name {
-    font-weight: 500;
-    word-break: break-word;
-    font-size: .9rem;
-    width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
+.grid-item-thumbnail { height: 80px; width: 100%; display: flex; align-items: center; justify-content: center; margin-bottom: .5rem; font-size: 3.5rem; }
+.grid-item-name { font-weight: 500; word-break: break-word; font-size: .9rem; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drag-over { border: 2px dashed var(--primary-color) !important; background-color: #e9f5ff !important; }
 
-/* --- Barre latérale de Détails (Droite) --- */
+/* --- MODIFIÉ : Barre latérale de Détails (Droite) --- */
 .details-sidebar {
     width: 350px;
     flex-shrink: 0;
@@ -177,144 +93,130 @@
     flex-direction: column;
 }
 .details-sidebar.open { right: 0; }
+
 .sidebar-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color);
-}
-.sidebar-body { padding: 1rem; overflow-y: auto; flex-grow: 1; }
-.sidebar-info-list li {
-    display: flex; justify-content: space-between;
-    padding: 8px 0; border-bottom: 1px solid var(--light-gray-bg);
-}
-
-/* --- Drag & Drop visual feedback --- */
-.drag-over {
-    border: 2px dashed var(--primary-color) !important;
-    background-color: #e9f5ff !important;
-}
-
-/* --- Menu Contextuel --- */
-.context-menu {
-    position: fixed;
-    z-index: 10000;
-    width: 220px;
-    background: #fff;
-    border-radius: 5px;
-    box-shadow: 0 5px 15px rgba(0,0,0,.2);
-    padding: 5px 0;
-    list-style: none;
-    margin: 0;
-    display: none;
-}
-.context-menu li {
-    padding: 8px 15px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: .9rem;
-}
-.context-menu li:hover {
-    background: var(--primary-color);
-    color: white;
-}
-.context-menu li.separator {
-    border-top: 1px solid var(--border-color);
-    margin-top: 5px;
-    padding-top: 5px;
-}
-
-/* --- MODIFICATION: Amélioration de la Modale --- */
-#document-modal .modal-content {
-    width: 95vw;
-    height: 95vh;
-    max-width: none;
-    max-height: none;
-}
-.modal-body-split { 
-    display: flex; 
-    flex-grow: 1; 
-    overflow: hidden; 
-    position: relative;
-}
-.modal-attachments {
-    width: 300px; 
-    flex-shrink: 0; 
-    border-right: 1px solid var(--border-color);
-    padding: 0 1rem; 
-    overflow-y: auto; 
-    transition: width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
-}
-.modal-preview { 
-    flex-grow: 1; 
-    display: flex; 
-    flex-direction: column; 
-    padding-left: 1rem;
-}
-.modal-preview-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 1rem;
+    gap: 1rem; /* Espace entre titre et bouton */
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
 }
-.modal-preview-header span {
-    font-weight: bold;
+/* CORRECTION BUG TITRE LONG */
+.sidebar-header h2 {
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    min-width: 0; /* Permet au titre de rétrécir */
+    margin: 0;
 }
-.modal-preview-iframe { 
-    width: 100%; 
-    height: 100%; 
-    border: 1px solid var(--border-color); 
-    border-radius: 4px;
+.sidebar-body {
+    padding: 0; /* Le padding sera géré par les sections internes */
+    overflow-y: auto;
+    flex-grow: 1;
 }
 
-/* --- NOUVEAU / MODIFIÉ : Amélioration de l'en-tête de la liste de fichiers --- */
-.files-list-card .card-header {
+/* NOUVEAU : Zone d'aperçu de l'icône */
+.sidebar-preview {
+    text-align: center;
+    padding: 2rem 1rem;
+    background-color: var(--light-gray-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+.sidebar-preview i {
+    font-size: 4rem;
+    color: var(--primary-color);
+}
+
+/* NOUVEAU : Zone d'actions rapides */
+.sidebar-actions {
+    padding: 1rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.sidebar-actions .button {
+    width: 100%;
+    justify-content: center; /* Centre le texte et l'icône */
+}
+
+/* MODIFIÉ : Sections d'informations et pièces jointes */
+.sidebar-section {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.sidebar-section:last-child {
+    border-bottom: none;
+}
+.sidebar-section h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+}
+.sidebar-info-list li {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 0; 
-    border-bottom: 1px solid var(--border-color); /* Ajout d'une bordure pour séparer */
-    margin-bottom: 1rem;
-    padding-bottom: 1rem; /* Ajout de padding */
+    padding: 8px 0;
+    border-bottom: 1px solid var(--light-gray-bg);
+    font-size: 0.9rem;
+}
+.sidebar-info-list li:last-child {
+    border-bottom: none;
+}
+.sidebar-info-list span {
+    color: var(--text-muted);
 }
 
-.header-main-actions {
+/* NOUVEAU : Styles pour la nouvelle liste de pièces jointes */
+.attachments-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.attachment-item {
     display: flex;
     align-items: center;
     gap: 1rem;
+    background-color: var(--light-gray-bg);
+    padding: 0.75rem;
+    border-radius: 4px;
 }
-
-.filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+.attachment-item-icon {
+    font-size: 1.5rem;
+    color: var(--text-muted);
 }
-
-.filter-group {
+.attachment-item-info {
+    flex-grow: 1;
+    min-width: 0; /* Permet au texte de se couper */
+}
+.attachment-item-info strong {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.attachment-item-info span {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.attachment-item-actions {
     display: flex;
-    align-items: center;
     gap: 0.5rem;
 }
 
-.filter-group label {
-    font-weight: 500;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-}
-
-.filter-group select {
-    padding: 6px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background-color: #fff;
-    font-size: 0.9rem;
-}
-
-.filter-group select:focus {
-    outline: none;
-    border-color: var(--primary-color);
-}
+/* ... (autres styles : menu contextuel, modale, etc.) ... */
+.context-menu { position: fixed; z-index: 10000; width: 220px; background: #fff; border-radius: 5px; box-shadow: 0 5px 15px rgba(0,0,0,.2); padding: 5px 0; list-style: none; margin: 0; display: none; }
+.context-menu li { padding: 8px 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: .9rem; }
+.context-menu li:hover { background: var(--primary-color); color: white; }
+.context-menu li.separator { border-top: 1px solid var(--border-color); margin-top: 5px; padding-top: 5px; }
+#document-modal .modal-content { width: 95vw; height: 95vh; max-width: none; max-height: none; }
+.modal-body-split { display: flex; flex-grow: 1; overflow: hidden; position: relative; }
+.modal-attachments { width: 300px; flex-shrink: 0; border-right: 1px solid var(--border-color); padding: 0 1rem; overflow-y: auto; transition: width 0.3s ease, padding 0.3s ease, opacity 0.3s ease; }
+.modal-preview { flex-grow: 1; display: flex; flex-direction: column; padding-left: 1rem; }
+.modal-preview-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 1rem; flex-shrink: 0; }
+.modal-preview-header span { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal-preview-iframe { width: 100%; height: 100%; border: 1px solid var(--border-color); border-radius: 4px; }

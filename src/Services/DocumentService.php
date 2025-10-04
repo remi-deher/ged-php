@@ -82,14 +82,22 @@ class DocumentService
         $mainDocument['size_formatted'] = $this->formatBytes($mainDocument['size']);
         $attachments = $this->documentRepository->findAttachments($docId);
 
+        // Formater la taille et récupérer le mime_type pour chaque pièce jointe
+        foreach ($attachments as &$attachment) {
+            $attachmentData = $this->documentRepository->find($attachment['id']);
+            $attachment['size_formatted'] = $this->formatBytes($attachmentData['size'] ?? 0);
+            $attachment['mime_type'] = $attachmentData['mime_type'] ?? 'application/octet-stream';
+        }
+
         return ['main_document' => $mainDocument, 'attachments' => $attachments];
     }
     
     private function formatBytes($bytes, $precision = 2): string
     { 
-        if ($bytes === null || $bytes <= 0) return '';
+        if ($bytes === null || $bytes <= 0) return '0 B';
         $units = ['B', 'KB', 'MB', 'GB', 'TB']; 
-        $pow = floor(log($bytes) / log(1024)); 
-        return round($bytes / (1024 ** $pow), $precision) . ' ' . $units[$pow]; 
+        $base = 1024;
+        $pow = floor(log($bytes) / log($base)); 
+        return round($bytes / ($base ** $pow), $precision) . ' ' . $units[$pow]; 
     }
 }

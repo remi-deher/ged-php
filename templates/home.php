@@ -254,11 +254,14 @@ $currentFolderId = $_GET['folder_id'] ?? null;
             </div>
         </main>
 
-        <aside id="details-sidebar" class="details-sidebar">
-             <div class="sidebar-header"><h2 id="sidebar-title">Détails</h2><button id="sidebar-close-btn" class="modal-close">&times;</button></div>
+<aside id="details-sidebar" class="details-sidebar">
+             <div class="sidebar-header">
+                <h2 id="sidebar-title">Détails</h2>
+                <button id="sidebar-close-btn" class="modal-close">&times;</button>
+             </div>
              <div class="sidebar-body">
-                 <div id="sidebar-info" class="sidebar-info"><h3>Informations</h3><ul id="sidebar-info-list"></ul></div>
-                 <div id="sidebar-attachments" class="sidebar-attachments"><button id="sidebar-attachments-toggle-btn" class="attachments-toggle-btn">Pièces jointes <span class="arrow">▼</span></button><ul id="sidebar-attachments-list" class="sidebar-attachments-list collapsed"></ul></div>
+                <div id="sidebar-content-wrapper">
+                    </div>
              </div>
         </aside>
     </div>
