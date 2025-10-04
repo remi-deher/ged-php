@@ -13,59 +13,138 @@ use DR\Ipp\Enum\FileTypeEnum;
 
 class DocumentController
 {
+    /**
+     * Construit une structure arborescente (imbriquée) à partir d'une liste de dossiers.
+     * @param array $elements La liste de tous les dossiers.
+     * @param int|null $parentId L'ID du parent pour lequel construire la branche.
+     * @return array La branche de l'arbre.
+     */
+    private function buildFolderTree(array &$elements, ?int $parentId = null): array
+    {
+        $branch = [];
+        foreach ($elements as $key => $element) {
+            // Utilise une comparaison non stricte car les données de la BDD peuvent être des chaînes
+            if ($element['parent_id'] == $parentId) {
+                // Copie l'élément pour ne pas modifier l'original dans la boucle
+                $child = $element;
+                unset($elements[$key]); // Optimisation: retire l'élément traité
+                $children = $this->buildFolderTree($elements, $child['id']);
+                if ($children) {
+                    $child['children'] = $children;
+                }
+                $branch[] = $child;
+            }
+        }
+        return $branch;
+    }
+
+    /**
+     * Récupère tous les dossiers et les retourne sous forme d'arbre hiérarchique.
+     * @return array
+     */
+    private function getFolderTree(): array
+    {
+        $pdo = Database::getInstance();
+        $stmt = $pdo->query('SELECT id, name, parent_id FROM folders ORDER BY name ASC');
+        $allFolders = $stmt->fetchAll();
+        return $this->buildFolderTree($allFolders);
+    }
+    
+    /**
+     * Récupère la chaîne de parents (fil d'Ariane) pour un dossier donné.
+     * @param int|null $folderId L'ID du dossier de départ.
+     * @return array Le fil d'Ariane.
+     */
+    private function getBreadcrumbs(?int $folderId): array
+    {
+        if ($folderId === null) {
+            return [];
+        }
+        $pdo = Database::getInstance();
+        $breadcrumbs = [];
+        $currentId = $folderId;
+        while ($currentId !== null) {
+            $stmt = $pdo->prepare('SELECT id, name, parent_id FROM folders WHERE id = ?');
+            $stmt->execute([$currentId]);
+            $folder = $stmt->fetch();
+            if ($folder) {
+                array_unshift($breadcrumbs, $folder);
+                $currentId = $folder['parent_id'];
+            } else {
+                $currentId = null; // Stoppe la boucle si un dossier est introuvable
+            }
+        }
+        return $breadcrumbs;
+    }
+
+    /**
+     * Affiche la liste des dossiers et documents.
+     */
     public function listDocuments(): void
     {
         $pdo = Database::getInstance();
-        $currentFolderId = isset($_GET['folder_id']) ? (int)$_GET['folder_id'] : null;
+        $currentFolderId = isset($_GET['folder_id']) && $_GET['folder_id'] !== 'root' ? (int)$_GET['folder_id'] : null;
         $searchQuery = $_GET['q'] ?? null;
-        $currentFolder = null;
+        
+        $folderTree = $this->getFolderTree(); // Arbre pour la sidebar de gauche
+        $breadcrumbs = $this->getBreadcrumbs($currentFolderId); // Fil d'Ariane
+        $currentFolder = !empty($breadcrumbs) ? end($breadcrumbs) : null;
 
-        if ($currentFolderId) {
-            $folderStmt = $pdo->prepare('SELECT id, name FROM folders WHERE id = ?');
-            $folderStmt->execute([$currentFolderId]);
-            $currentFolder = $folderStmt->fetch();
-        }
+        $items = [];
 
-        $folders = [];
-        // On n'affiche les dossiers que si on est à la racine et qu'il n'y a pas de recherche
-        if (!$currentFolderId && !$searchQuery) {
-            $foldersStmt = $pdo->query('SELECT id, name FROM folders ORDER BY name ASC');
-            $folders = $foldersStmt->fetchAll();
+        // On n'affiche les sous-dossiers que s'il n'y a pas de recherche active
+        if (!$searchQuery) {
+            $folderSql = 'SELECT id, name, parent_id, NULL as status, NULL as created_at, NULL as parent_document_id, NULL as source_account_id, NULL as size, NULL as mime_type FROM folders WHERE ';
+            if ($currentFolderId) {
+                $folderSql .= 'parent_id = :folder_id';
+                $folderParams = [':folder_id' => $currentFolderId];
+            } else {
+                $folderSql .= 'parent_id IS NULL';
+                $folderParams = [];
+            }
+            $folderSql .= ' ORDER BY name ASC';
+            
+            $foldersStmt = $pdo->prepare($folderSql);
+            $foldersStmt->execute($folderParams);
+            foreach($foldersStmt->fetchAll() as $folder) {
+                $folder['type'] = 'folder';
+                $items[] = $folder;
+            }
         }
         
-        // La requête de base sélectionne les documents non supprimés
-        $sql = 'SELECT d.id, d.original_filename, d.status, d.created_at, d.parent_document_id, d.folder_id, d.source_account_id, d.size, d.mime_type 
-                FROM documents d 
-                WHERE d.deleted_at IS NULL';
+        // Requête pour les documents
+        $docSql = 'SELECT d.id, d.original_filename as name, d.status, d.created_at, d.parent_document_id, d.folder_id, d.source_account_id, d.size, d.mime_type 
+                   FROM documents d 
+                   WHERE d.deleted_at IS NULL';
         
         $params = [];
 
-        // Si une recherche est effectuée, on cherche dans tous les dossiers
         if ($searchQuery) {
-            $sql .= ' AND d.original_filename LIKE :search_query';
+            $docSql .= ' AND d.original_filename LIKE :search_query';
             $params[':search_query'] = '%' . $searchQuery . '%';
         } else {
-            // Sinon, on filtre par le dossier courant (ou la racine)
-            $sql .= ' AND d.folder_id ' . ($currentFolderId ? '= :folder_id' : 'IS NULL');
+            $docSql .= ' AND d.folder_id ' . ($currentFolderId ? '= :folder_id' : 'IS NULL');
             if ($currentFolderId) {
                 $params[':folder_id'] = $currentFolderId;
             }
         }
         
-        $sql .= ' ORDER BY d.created_at DESC';
+        $docSql .= ' ORDER BY d.created_at DESC';
         
-        $stmt = $pdo->prepare($sql);
+        $stmt = $pdo->prepare($docSql);
         $stmt->execute($params);
         $allDocuments = $stmt->fetchAll();
         
+        // Logique pour grouper les pièces jointes avec leur e-mail parent
         $documents = [];
         $attachmentsMap = [];
         foreach ($allDocuments as $doc) {
             if ($doc['parent_document_id'] !== null) {
                 $attachmentsMap[$doc['parent_document_id']][] = $doc;
             } else {
+                $doc['type'] = 'document';
+                $doc['attachments'] = [];
                 $documents[$doc['id']] = $doc;
-                $documents[$doc['id']]['attachments'] = [];
             }
         }
         foreach ($attachmentsMap as $parentId => $attachments) {
@@ -73,9 +152,34 @@ class DocumentController
                 $documents[$parentId]['attachments'] = $attachments;
             }
         }
+        
+        // Fusionne les dossiers et les documents dans la liste finale
+        $items = array_merge($items, array_values($documents));
+        
         require_once dirname(__DIR__, 2) . '/templates/home.php';
     }
 
+    /**
+     * Gère la création d'un dossier, potentiellement dans un dossier parent.
+     */
+    public function createFolder(): void
+    {
+        if (isset($_POST['folder_name']) && !empty(trim($_POST['folder_name']))) {
+            $folderName = trim($_POST['folder_name']);
+            // Gère le cas où 'parent_id' est une chaîne vide pour la racine
+            $parentId = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int)$_POST['parent_id'] : null;
+            
+            $pdo = Database::getInstance();
+            $stmt = $pdo->prepare("INSERT INTO folders (name, parent_id) VALUES (?, ?)");
+            $stmt->execute([$folderName, $parentId]);
+        }
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+        exit();
+    }
+    
+    // ... Le reste des méthodes (getPrintQueueStatus, uploadDocument, downloadDocument, etc.) reste inchangé ...
+    // ... Vous pouvez les copier depuis votre fichier existant ou la réponse précédente.
+    
     public function getPrintQueueStatus(): void
     {
         header('Content-Type: application/json');
@@ -135,20 +239,21 @@ class DocumentController
     public function uploadDocument(): void
     {
         if (!isset($_FILES['document'])) { header('Location: /?error=nofile'); exit(); }
+        $currentFolderId = isset($_POST['folder_id']) && !empty($_POST['folder_id']) ? (int)$_POST['folder_id'] : null;
         $uploader = new FileUploaderService();
         try {
             $uploadedFile = $uploader->handleUpload($_FILES['document']);
             $pdo = Database::getInstance();
-            $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'received', NOW(), NOW())";
+            $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, folder_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'received', ?, NOW(), NOW())";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$uploadedFile['original_filename'], $uploadedFile['stored_filename'], 'storage/', $uploadedFile['mime_type'], $uploadedFile['size']]);
+            $stmt->execute([$uploadedFile['original_filename'], $uploadedFile['stored_filename'], 'storage/', $uploadedFile['mime_type'], $uploadedFile['size'], $currentFolderId]);
             $this->notifyClients('new_document', ['filename' => $uploadedFile['original_filename']]);
         } catch (\Exception $e) {
             error_log('Upload/DB Error: ' . $e->getMessage());
             header('Location: /?error=' . urlencode($e->getMessage()));
             exit();
         }
-        header('Location: /');
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
         exit();
     }
 
@@ -316,18 +421,6 @@ class DocumentController
         header('Location: /trash');
         exit();
     }
-    
-    public function createFolder(): void
-    {
-        if (isset($_POST['folder_name']) && !empty(trim($_POST['folder_name']))) {
-            $folderName = trim($_POST['folder_name']);
-            $pdo = Database::getInstance();
-            $stmt = $pdo->prepare("INSERT INTO folders (name) VALUES (?)");
-            $stmt->execute([$folderName]);
-        }
-        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
-        exit();
-    }
 
     public function moveDocument(): void
     {
@@ -376,7 +469,7 @@ class DocumentController
     // Helper privé pour formater la taille des fichiers
     private function formatBytes($bytes, $precision = 2): string
     { 
-        if ($bytes <= 0) return '0 B';
+        if ($bytes === null || $bytes <= 0) return '';
         $units = ['B', 'KB', 'MB', 'GB', 'TB']; 
         $pow = floor(log($bytes) / log(1024)); 
         return round($bytes / (1024 ** $pow), $precision) . ' ' . $units[$pow]; 
