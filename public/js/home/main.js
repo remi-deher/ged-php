@@ -1,9 +1,7 @@
 // public/js/home/main.js
 
-// Crée le namespace spécifique à la page d'accueil
 GED.home = GED.home || {};
 
-// Module principal qui orchestre l'initialisation
 GED.home.main = {
     init() {
         // Initialise tous les modules de la page d'accueil
@@ -15,6 +13,7 @@ GED.home.main = {
         GED.home.dnd.init();
         GED.home.printQueue.init();
         GED.home.websocket.init();
+        GED.home.upload.init(); // Initialisation du nouveau module de téléversement
 
         // Gère les événements globaux de la page comme le simple/double clic
         this.initGlobalEvents();
@@ -24,15 +23,18 @@ GED.home.main = {
         document.querySelectorAll('.document-row:not(.folder-row)').forEach(row => {
             let clickTimer = null;
             row.addEventListener('click', (e) => {
+                // Ignore les clics sur les éléments interactifs
                 if (e.target.closest('button, a, input[type="checkbox"], form')) return;
                 
                 if (clickTimer === null) {
+                    // Premier clic : lance un minuteur
                     clickTimer = setTimeout(() => {
                         clickTimer = null;
                         const docId = row.dataset.docId;
-                        if (docId) GED.home.sidebar.openForDocument(docId);
+                        if (docId) GED.home.sidebar.openForDocument(docId); // Ouvre la sidebar
                     }, 250);
                 } else {
+                    // Deuxième clic rapide : annule le minuteur et ouvre la modale
                     clearTimeout(clickTimer);
                     clickTimer = null;
                     const docId = row.dataset.docId;

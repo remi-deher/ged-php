@@ -16,6 +16,18 @@ class TrashService
         $this->storagePath = dirname(__DIR__, 2) . '/storage/';
     }
 
+    /**
+     * Déplace un ou plusieurs documents vers la corbeille.
+     * @param array $docIds Les ID des documents à déplacer.
+     */
+    public function moveToTrash(array $docIds): void
+    {
+        if (empty($docIds)) {
+            return;
+        }
+        $this->documentRepository->moveToTrash($docIds);
+    }
+
     public function getTrashedDocuments(): array
     {
         return $this->documentRepository->findTrashed();
@@ -39,7 +51,7 @@ class TrashService
         foreach ($documents as $document) {
             $filePath = $this->storagePath . $document['stored_filename'];
             if (file_exists($filePath) && is_file($filePath)) {
-                unlink($filePath);
+                @unlink($filePath);
             }
         }
 

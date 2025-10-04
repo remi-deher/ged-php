@@ -82,26 +82,72 @@ class DocumentController
 
     public function uploadDocument(): void
     {
-        if (!isset($_FILES['document'])) { 
-            header('Location: /?error=nofile'); 
-            exit(); 
-        }
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
         
-        $currentFolderId = isset($_POST['folder_id']) && !empty($_POST['folder_id']) ? (int)$_POST['folder_id'] : null;
-        $uploader = new FileUploaderService();
-        
-        try {
-            $uploadedFile = $uploader->handleUpload($_FILES['document']);
-            $uploadedFile['folder_id'] = $currentFolderId;
-            $this->documentRepository->create($uploadedFile);
-            $this->notifyClients('new_document', ['filename' => $uploadedFile['original_filename']]);
-        } catch (\Exception $e) {
-            error_log('Upload/DB Error: ' . $e->getMessage());
-            header('Location: /?error=' . urlencode($e->getMessage()));
+        $filesKey = isset($_FILES['documents']) ? 'documents' : 'document';
+
+        if (empty($_FILES[$filesKey])) {
+            if ($isAjax) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Aucun fichier reçu.']);
+            } else {
+                header('Location: /?error=nofile');
+            }
             exit();
         }
-        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+
+        $files = $this->reformatFilesArray($_FILES[$filesKey]);
+        $currentFolderId = isset($_POST['folder_id']) && !empty($_POST['folder_id']) ? (int)$_POST['folder_id'] : null;
+        $uploader = new FileUploaderService();
+        $errors = [];
+        $successCount = 0;
+
+        foreach ($files as $file) {
+            try {
+                $uploadedFile = $uploader->handleUpload($file);
+                $uploadedFile['folder_id'] = $currentFolderId;
+                $this->documentRepository->create($uploadedFile);
+                $this->notifyClients('new_document', ['filename' => $uploadedFile['original_filename']]);
+                $successCount++;
+            } catch (\Exception $e) {
+                $errors[] = $file['name'] . ': ' . $e->getMessage();
+                error_log('Upload Error: ' . $e->getMessage());
+            }
+        }
+
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            if ($successCount > 0 && empty($errors)) {
+                echo json_encode(['success' => true, 'message' => "$successCount fichier(s) téléversé(s) avec succès !"]);
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => "Erreur lors du téléversement : " . implode(', ', $errors)]);
+            }
+        } else {
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+        }
         exit();
+    }
+
+    /**
+     * Reformate le tableau $_FILES pour le rendre itérable.
+     */
+    private function reformatFilesArray(array $files): array
+    {
+        if (!is_array($files['name'])) {
+            return [$files];
+        }
+
+        $fileArray = [];
+        $fileCount = count($files['name']);
+        $fileKeys = array_keys($files);
+
+        for ($i = 0; $i < $fileCount; $i++) {
+            foreach ($fileKeys as $key) {
+                $fileArray[$i][$key] = $files[$key][$i];
+            }
+        }
+        return $fileArray;
     }
 
     public function moveDocument(): void
@@ -152,7 +198,7 @@ class DocumentController
         exit;
     }
     
-    // --- Logique d'impression (wrapper pour PrintService) ---
+    // --- Logique d'impression ---
 
     public function getPrintQueueStatus(): void
     {
@@ -220,7 +266,7 @@ class DocumentController
         exit();
     }
     
-    // --- Logique de la corbeille (wrapper pour TrashService) ---
+    // --- Logique de la corbeille ---
 
     public function moveToTrash(): void
     {
@@ -234,9 +280,8 @@ class DocumentController
 
     public function listTrash(): void
     {
-        // Charger l'arborescence des dossiers pour la barre latérale
         $folderTree = $this->folderService->getFolderTree();
-        $currentFolderId = null; // Aucun dossier n'est sélectionné dans la corbeille
+        $currentFolderId = null;
 
         $documents = $this->trashService->getTrashedDocuments();
         require_once dirname(__DIR__, 2) . '/templates/trash.php';

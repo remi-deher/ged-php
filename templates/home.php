@@ -44,7 +44,6 @@ function getSortLink(string $column, string $title): string {
     $currentSort = $_GET['sort'] ?? 'created_at';
     $currentOrder = $_GET['order'] ?? 'desc';
     
-    // Conserver les autres paramètres de l'URL
     $queryParams = $_GET;
     $queryParams['sort'] = $column;
     $queryParams['order'] = ($currentSort === $column && $currentOrder === 'asc') ? 'desc' : 'asc';
@@ -73,6 +72,13 @@ $currentFolderId = $_GET['folder_id'] ?? null;
 </head>
 <body>
     <?php require_once __DIR__ . '/parts/navbar.php'; ?>
+
+    <div id="drop-overlay" class="drop-overlay">
+        <div class="drop-overlay-content">
+            <i class="fas fa-upload"></i>
+            <h2>Déposez vos fichiers ici</h2>
+        </div>
+    </div>
 
     <div class="app-layout">
         <aside class="app-sidebar-left">
@@ -147,7 +153,6 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                             <?php if (isset($_GET['folder_id'])): ?>
                                 <input type="hidden" name="folder_id" value="<?= htmlspecialchars($_GET['folder_id']) ?>">
                             <?php endif; ?>
-
                             <div class="filter-group">
                                 <label for="filter-type"><i class="fas fa-file-alt"></i></label>
                                 <select name="mime_type" id="filter-type" onchange="this.form.submit()">
@@ -157,7 +162,6 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                     <option value="word" <?= ($_GET['mime_type'] ?? '') == 'word' ? 'selected' : '' ?>>Document Word</option>
                                 </select>
                             </div>
-
                             <div class="filter-group">
                                 <label for="filter-source"><i class="fas fa-satellite-dish"></i></label>
                                 <select name="source" id="filter-source" onchange="this.form.submit()">
@@ -166,7 +170,6 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                     <option value="manual" <?= ($_GET['source'] ?? '') == 'manual' ? 'selected' : '' ?>>Manuel</option>
                                 </select>
                             </div>
-                            
                             <?php if (!empty($_GET['mime_type']) || !empty($_GET['source'])): 
                                 $resetParams = [];
                                 if (isset($_GET['folder_id'])) $resetParams['folder_id'] = $_GET['folder_id'];
@@ -254,7 +257,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
             </div>
         </main>
 
-<aside id="details-sidebar" class="details-sidebar">
+        <aside id="details-sidebar" class="details-sidebar">
              <div class="sidebar-header">
                 <h2 id="sidebar-title">Détails</h2>
                 <button id="sidebar-close-btn" class="modal-close">&times;</button>
@@ -312,6 +315,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
     <script src="/js/home/dnd.js"></script>
     <script src="/js/home/printQueue.js"></script>
     <script src="/js/home/websocket.js"></script>
+    <script src="/js/home/upload.js"></script>
     <script src="/js/home/main.js"></script> 
 </body>
 </html>
