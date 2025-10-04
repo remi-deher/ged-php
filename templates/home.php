@@ -200,21 +200,32 @@ $currentFolderId = $_GET['folder_id'] ?? null;
         </aside>
     </div>
     
-    <div id="document-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content" style="max-width: 1200px; height: 90vh;">
-            <div class="modal-header"><h2 id="modal-title"></h2><button class="modal-close">&times;</button></div>
-            <div class="modal-body-split">
-                <div id="modal-attachments" class="modal-attachments">
-                    <div class="attachments-header"><h3>Pièces jointes</h3></div>
-                    <ul id="modal-attachments-list" class="modal-attachments-list"></ul>
+<div id="document-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 1200px; height: 90vh;">
+        <div class="modal-header">
+            <h2 id="modal-title"></h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body-split">
+            <div id="modal-attachments" class="modal-attachments">
+                <div class="attachments-header"><h3>Pièces jointes</h3></div>
+                <ul id="modal-attachments-list" class="modal-attachments-list"></ul>
+            </div>
+            <button id="modal-attachments-toggle-btn" title="Masquer les pièces jointes">‹</button>
+            
+            <div id="modal-preview" class="modal-preview">
+                <div class="modal-preview-header">
+                    <span id="preview-doc-title"></span>
+                    <a id="preview-new-tab" href="#" target="_blank" class="button button-secondary">
+                        <i class="fas fa-external-link-alt"></i> Ouvrir dans un nouvel onglet
+                    </a>
                 </div>
-                <button id="modal-attachments-toggle-btn" title="Masquer les pièces jointes">‹</button>
-                <div id="modal-preview" class="modal-preview">
-                    <iframe id="modal-preview-iframe" class="modal-preview-iframe"></iframe>
-                </div>
+                <iframe id="modal-preview-iframe" class="modal-preview-iframe" sandbox="allow-same-origin"></iframe>
             </div>
         </div>
     </div>
+</div>
+
     <ul id="context-menu" class="context-menu">
         <li data-action="preview_sidebar">👁️ Aperçu rapide</li>
         <li data-action="preview_modal">📖 Ouvrir en grand</li>

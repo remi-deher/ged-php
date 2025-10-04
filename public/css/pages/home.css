@@ -3,9 +3,8 @@
 /* --- Layout Principal --- */
 .app-layout {
     display: flex;
-    height: 100vh;
-    padding-top: 60px; /* Hauteur du header */
-    box-sizing: border-box;
+    height: 100vh; /* Prend 100% de la hauteur de la fenêtre */
+    padding-top: 60px; /* Laisse de la place pour l'en-tête fixe */
 }
 
 /* --- Barre latérale (Gauche) --- */
@@ -15,7 +14,7 @@
     background: var(--light-gray-bg);
     border-right: 1px solid var(--border-color);
     padding: 1rem;
-    overflow-y: auto;
+    overflow-y: auto; /* Permet le défilement si la liste de dossiers est longue */
 }
 .sidebar-nav ul li a {
     display: flex;
@@ -35,7 +34,16 @@
     background-color: var(--border-color);
     margin: 1rem 0;
 }
-.folder-tree ul li a {
+.folder-tree ul {
+    list-style: none;
+    padding: 0;
+}
+.folder-tree ul ul {
+    padding-left: 20px; 
+    border-left: 1px solid var(--border-color);
+    margin-left: 10px;
+}
+.folder-tree li a {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -43,7 +51,11 @@
     border-radius: 4px;
     color: var(--text-color);
 }
-.folder-tree ul li.active a, .folder-tree ul li a:hover {
+.folder-tree li.active > a {
+    background-color: #d1e7fd;
+    font-weight: bold;
+}
+.folder-tree li a:hover {
     background-color: #e0e0e0;
 }
 
@@ -51,11 +63,7 @@
 .main-content {
     flex-grow: 1;
     padding: 1.5rem;
-    overflow-y: auto;
-    transition: margin-right 0.3s ease-in-out;
-}
-.main-content.sidebar-open {
-    margin-right: 400px; /* La largeur de la sidebar de détails */
+    overflow-y: auto; /* Permet le défilement du contenu principal uniquement */
 }
 .content-header {
     display: flex;
@@ -64,28 +72,42 @@
     margin-bottom: 1.5rem;
 }
 .breadcrumb h1 { font-size: 1.5rem; display: flex; align-items: center; gap: 8px; }
+.breadcrumb a { color: var(--text-color); }
+.breadcrumb a:hover { color: var(--primary-color); }
 .content-actions { display: flex; gap: 1rem; }
 .create-folder-form { display: flex; }
 .create-folder-form input { border-radius: 4px 0 0 4px; border-right: none; }
 .create-folder-form button { border-radius: 0 4px 4px 0; }
+.upload-form label { white-space: nowrap; }
 
+.card.files-list-card {
+    border: none;
+    box-shadow: none;
+    background: none;
+}
 .files-list-card .card-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color);
+    padding: 0; 
+    border-bottom: none;
+    margin-bottom: 1rem;
 }
 .files-list-card .card-body { padding: 0; }
+.empty-state {
+    text-align: center;
+    padding: 4rem;
+    color: var(--text-muted);
+}
 
-/* --- Table des documents (unifiée) --- */
-.documents-table th, .documents-table td { padding: 10px 15px; }
+/* --- Table des documents --- */
 .documents-table .col-checkbox { width: 40px; }
 .documents-table .col-icon { width: 40px; text-align: center; font-size: 1.2rem; }
 .documents-table .col-size { width: 120px; text-align: right; }
 .documents-table .col-date { width: 160px; text-align: right; }
 .documents-table .col-actions { width: 100px; text-align: right; }
 
-.folder-row:hover { cursor: pointer; }
+.folder-row { cursor: pointer; }
 .folder-icon-color { color: var(--primary-color); }
-.folder-link { color: var(--text-color); font-weight: 500; }
+.folder-link { color: var(--text-color); font-weight: 500; display: block; padding: 12px 0; }
 .document-row { cursor: pointer; }
 .document-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .status-dot {
@@ -93,34 +115,11 @@
     border-radius: 50%; margin-right: 8px;
 }
 
-/* --- Barre latérale de Détails (Droite) --- */
-.details-sidebar {
-    width: 400px;
-    flex-shrink: 0;
-    background: #fff;
-    border-left: 1px solid var(--border-color);
-    position: fixed;
-    right: -400px; /* Cachée par défaut */
-    top: 60px;
-    bottom: 0;
-    z-index: 900;
-    transition: right 0.3s ease-in-out;
-    display: flex;
-    flex-direction: column;
-}
-.details-sidebar.open { right: 0; }
-.sidebar-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color);
-}
-.sidebar-body { padding: 1rem; overflow-y: auto; flex-grow: 1; }
-
-/* --- NOUVEAU: Styles pour la Vue Grille --- */
+/* --- Vue Grille --- */
 .grid-view-container {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 1.5rem;
-    padding: 1.5rem;
 }
 .grid-item {
     display: flex;
@@ -138,10 +137,10 @@
 .grid-item:hover {
     background-color: var(--primary-color);
     color: white;
-    border-color: var(--primary-color);
     box-shadow: 0 4px 12px rgba(0,0,0,.1);
     transform: translateY(-5px);
 }
+.grid-item:hover .grid-item-thumbnail i { color: white; }
 .grid-item.dragging { opacity: .4; }
 .grid-item-thumbnail {
     height: 80px;
@@ -151,9 +150,6 @@
     justify-content: center;
     margin-bottom: .5rem;
     font-size: 3.5rem;
-}
-.grid-item:hover .grid-item-thumbnail i {
-    color: white;
 }
 .grid-item-name {
     font-weight: 500;
@@ -165,34 +161,112 @@
     white-space: nowrap;
 }
 
-
-/* --- Styles pour l'arborescence --- */
-
-.folder-tree ul {
-    list-style: none;
-    padding: 0;
-}
-
-.folder-tree ul ul {
-    padding-left: 20px; /* Indentation pour les sous-dossiers */
+/* --- Barre latérale de Détails (Droite) --- */
+.details-sidebar {
+    width: 350px;
+    flex-shrink: 0;
+    background: #fff;
     border-left: 1px solid var(--border-color);
-    margin-left: 10px;
+    position: fixed;
+    right: -350px; /* Cachée par défaut */
+    top: 60px; /* Sous le header */
+    bottom: 0;
+    z-index: 900;
+    transition: right 0.3s ease-in-out;
+    display: flex;
+    flex-direction: column;
+}
+.details-sidebar.open { right: 0; }
+.sidebar-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color);
+}
+.sidebar-body { padding: 1rem; overflow-y: auto; flex-grow: 1; }
+.sidebar-info-list li {
+    display: flex; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid var(--light-gray-bg);
 }
 
-.folder-tree li a {
+/* --- Drag & Drop visual feedback --- */
+.drag-over {
+    border: 2px dashed var(--primary-color) !important;
+    background-color: #e9f5ff !important;
+}
+
+/* --- Menu Contextuel --- */
+.context-menu {
+    position: fixed;
+    z-index: 10000;
+    width: 220px;
+    background: #fff;
+    border-radius: 5px;
+    box-shadow: 0 5px 15px rgba(0,0,0,.2);
+    padding: 5px 0;
+    list-style: none;
+    margin: 0;
+    display: none;
+}
+.context-menu li {
+    padding: 8px 15px;
+    cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 10px;
-    border-radius: 4px;
-    color: var(--text-color);
+    gap: 10px;
+    font-size: .9rem;
+}
+.context-menu li:hover {
+    background: var(--primary-color);
+    color: white;
+}
+.context-menu li.separator {
+    border-top: 1px solid var(--border-color);
+    margin-top: 5px;
+    padding-top: 5px;
 }
 
-.folder-tree li.active > a {
-    background-color: #d1e7fd;
+/* --- MODIFICATION: Amélioration de la Modale --- */
+#document-modal .modal-content {
+    width: 95vw;
+    height: 95vh;
+    max-width: none;
+    max-height: none;
+}
+.modal-body-split { 
+    display: flex; 
+    flex-grow: 1; 
+    overflow: hidden; 
+    position: relative;
+}
+.modal-attachments {
+    width: 300px; 
+    flex-shrink: 0; 
+    border-right: 1px solid var(--border-color);
+    padding: 0 1rem; 
+    overflow-y: auto; 
+    transition: width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+}
+.modal-preview { 
+    flex-grow: 1; 
+    display: flex; 
+    flex-direction: column; 
+    padding-left: 1rem;
+}
+.modal-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    flex-shrink: 0;
+}
+.modal-preview-header span {
     font-weight: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-
-.folder-tree li a:hover {
-    background-color: #e0e0e0;
+.modal-preview-iframe { 
+    width: 100%; 
+    height: 100%; 
+    border: 1px solid var(--border-color); 
+    border-radius: 4px;
 }

@@ -1,10 +1,8 @@
-/* ==========================================================================
-   Base Styles - Variables, Body, Typography, Layout
-   ========================================================================== */
+/* public/css/base.css */
 
 :root {
-    --primary-color: #007bff;
-    --primary-hover-color: #0056b3;
+    --primary-color: #0082c9;
+    --primary-hover-color: #006aa3;
     --danger-color: #dc3545;
     --danger-hover-color: #c82333;
     --secondary-color: #6c757d;
@@ -13,31 +11,31 @@
     --success-text: #155724;
     --error-bg: #f8d7da;
     --error-text: #721c24;
-    --light-gray-bg: #f8f9fa;
-    --border-color: #e9ecef;
+    --light-gray-bg: #f9f9f9;
+    --border-color: #e4e4e4;
     --text-color: #333;
     --text-muted: #6c757d;
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-body {
-    font-family: var(--font-family);
-    max-width: 900px;
-    margin: auto;
-    padding: 2rem;
-    background-color: var(--light-gray-bg);
-    color: var(--text-color);
+/* MODIFIÉ: Préparation pour un layout plein écran */
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Empêche le défilement sur la page entière */
 }
 
-.container {
-    background: #fff;
-    padding: 2rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+body {
+    font-family: var(--font-family);
+    background-color: #fff;
+    color: var(--text-color);
 }
 
 h1, h2, h3 {
     color: var(--primary-hover-color);
+    margin: 0;
 }
 
 hr {
@@ -49,4 +47,15 @@ hr {
 ul {
     list-style: none;
     padding: 0;
+    margin: 0;
+}
+
+a {
+    text-decoration: none;
+    color: var(--primary-color);
+}
+
+/* Assure que tous les éléments utilisent border-box pour un dimensionnement plus simple */
+*, *::before, *::after {
+    box-sizing: border-box;
 }

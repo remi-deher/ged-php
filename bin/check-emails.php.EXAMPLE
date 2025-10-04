@@ -109,28 +109,44 @@ foreach ($tenants as $tenant) {
                             echo "      -> Sauvegarde du corps de l'e-mail en HTML...\n";
                             $emailBodyHtml = $message->getBody()->getContent();
                             
-                            // NOUVEAU: Vérifie si le corps de l'e-mail est vide
                             if (trim(strip_tags($emailBodyHtml)) === '') {
-                                $emailBodyHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family: sans-serif; text-align: center; padding-top: 50px; color: #888;"><h1>Ce mail est vide.</h1></body></html>';
-                                echo "      -> Le corps du mail est vide, un message de remplacement sera utilisé.\n";
+                                $emailBodyHtml = '<h1>Ce mail est vide.</h1>';
                             }
-                            
+
+                            // NOUVEAU: On enveloppe le corps de l'e-mail dans une page HTML complète et sécurisée
+                            $fullHtml = '<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>' . htmlspecialchars($message->getSubject() ?: 'Email sans sujet') . '</title>
+    <style>
+        /* Styles de base pour améliorer la lisibilité et éviter les dépassements */
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; }
+        img, svg, video, embed, iframe, object { max-width: 100%; height: auto; }
+        table { max-width: 100%; border-collapse: collapse; }
+        td, th { padding: 5px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>' . $emailBodyHtml . '</body>
+</html>';
+
                             $emailSubject = $message->getSubject() ?: 'Email sans sujet';
-                            
                             $storedHtmlFilename = 'email_' . uniqid('', true) . '.html';
                             $fullHtmlPath = dirname(__DIR__) . '/storage/' . $storedHtmlFilename;
-                            file_put_contents($fullHtmlPath, $emailBodyHtml);
-                            echo "      -> Fichier HTML sauvegardé : $storedHtmlFilename\n";
+                            
+                            file_put_contents($fullHtmlPath, $fullHtml); // On sauvegarde le HTML complet
 
+                            echo "      -> Fichier HTML sauvegardé : $storedHtmlFilename\n";
                             echo "      -> Insertion du HTML dans la BDD...\n";
                             $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, source_account_id, created_at, updated_at) 
                                     VALUES (?, ?, ?, 'text/html', ?, 'received', ?, NOW(), NOW())";
                             $stmt = $pdo->prepare($sql);
-                            $stmt->execute([$emailSubject . '.html', $storedHtmlFilename, 'storage/', strlen($emailBodyHtml), $account['id']]);
+                            // On utilise strlen($fullHtml) pour la taille
+                            $stmt->execute([$emailSubject . '.html', $storedHtmlFilename, 'storage/', strlen($fullHtml), $account['id']]);
                             $parentDocumentId = $pdo->lastInsertId();
                             echo "      -> SUCCÈS: E-mail enregistré en BDD avec l'ID: $parentDocumentId.\n";
                             notifyWebSocket($emailSubject . '.html');
-
                         } catch (\PDOException $e) {
                             echo "      -> ERREUR BDD (Email): " . $e->getMessage() . "\n";
                             error_log("CRON ERREUR BDD (Email): " . $e->getMessage());
