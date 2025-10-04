@@ -63,7 +63,7 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
                                 <thead>
                                     <tr>
                                         <th>Nom</th>
-                                        <th>URI</th>
+                                        <th style="width: 250px;">URI</th>
                                         <th style="text-align: right;">Actions</th>
                                     </tr>
                                 </thead>
@@ -71,14 +71,18 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
                                     <?php foreach ($printers as $printer): ?>
                                         <tr>
                                             <td><?= htmlspecialchars($printer['name']) ?></td>
-                                            <td><?= htmlspecialchars($printer['uri']) ?></td>
-                                            <td class="col-actions" style="text-align: right;">
-                                                <button class="button-icon btn-edit-printer" data-printer='<?= json_encode($printer, JSON_HEX_APOS | JSON_HEX_QUOT) ?>' title="Modifier cette imprimante">✏️</button>
-                                                <button class="button-icon btn-test-printer" data-printer-id="<?= $printer['id'] ?>" title="Envoyer une page de test">🧪</button>
-                                                <form action="/settings/printer/delete" method="POST" style="display:inline;" onsubmit="return confirm('Voulez-vous vraiment supprimer cette imprimante ?');">
-                                                    <input type="hidden" name="printer_id" value="<?= $printer['id'] ?>">
-                                                    <button type="submit" class="button-icon button-delete" title="Supprimer">🗑️</button>
-                                                </form>
+                                            <td class="col-uri" title="<?= htmlspecialchars($printer['uri']) ?>">
+                                                <?= htmlspecialchars($printer['uri']) ?>
+                                            </td>
+                                            <td>
+                                                <div class="actions-group">
+                                                    <button class="button-icon btn-edit-printer" data-printer='<?= json_encode($printer, JSON_HEX_APOS | JSON_HEX_QUOT) ?>' title="Modifier cette imprimante">✏️</button>
+                                                    <button class="button-icon btn-test-printer" data-printer-id="<?= $printer['id'] ?>" title="Envoyer une page de test">🧪</button>
+                                                    <form action="/settings/printer/delete" method="POST" style="display:inline;" onsubmit="return confirm('Voulez-vous vraiment supprimer cette imprimante ?');">
+                                                        <input type="hidden" name="printer_id" value="<?= $printer['id'] ?>">
+                                                        <button type="submit" class="button-icon button-delete" title="Supprimer">🗑️</button>
+                                                    </form>
+                                                </div>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -86,7 +90,7 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
                             </table>
                         <?php endif; ?>
                     </div>
-                    <div class="form-actions" style="justify-content: flex-start; margin-top: 1rem;">
+                    <div class="form-actions">
                         <button type="button" id="btn-show-printer-form" class="button">➕ Ajouter une imprimante</button>
                     </div>
                 </div>

@@ -186,3 +186,46 @@
     width: auto;
     margin-left: 10px;
 }
+
+/* --- AMÉLIORATION DU BLOC DE GESTION (IMPRIMANTES) --- */
+
+.settings-block .table {
+    table-layout: fixed; /* Force le tableau à respecter les largeurs définies */
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.settings-block .table th,
+.settings-block .table td {
+    padding: 12px 15px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-block .table tbody tr:last-child td {
+    border-bottom: none; /* Supprime la bordure pour la dernière ligne */
+}
+
+/* Colonne URI pour gérer le texte long */
+.settings-block .table .col-uri {
+    white-space: nowrap;      /* Empêche le retour à la ligne */
+    overflow: hidden;         /* Cache le texte qui dépasse */
+    text-overflow: ellipsis;  /* Ajoute "..." à la fin */
+    max-width: 250px;         /* Limite la largeur maximale de la cellule */
+}
+
+/* Conteneur pour les boutons d'action */
+.settings-block .table .actions-group {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.5rem; /* Espace entre les boutons */
+}
+
+/* Amélioration du bouton "Ajouter une imprimante" */
+.settings-block .form-actions {
+    justify-content: flex-start;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
