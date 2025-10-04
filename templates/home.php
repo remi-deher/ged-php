@@ -1,4 +1,6 @@
 <?php
+// templates/home.php
+
 // Helpers de formatage
 function formatSizeUnits($bytes) {
     if ($bytes === null) return '';
@@ -36,6 +38,26 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
     }
     echo '</ul>';
 }
+
+// Helper pour générer les liens de tri
+function getSortLink(string $column, string $title): string {
+    $currentSort = $_GET['sort'] ?? 'created_at';
+    $currentOrder = $_GET['order'] ?? 'desc';
+    
+    // Conserver les autres paramètres de l'URL
+    $queryParams = $_GET;
+    $queryParams['sort'] = $column;
+    $queryParams['order'] = ($currentSort === $column && $currentOrder === 'asc') ? 'desc' : 'asc';
+    
+    $queryString = http_build_query($queryParams);
+
+    $icon = '';
+    if ($currentSort === $column) {
+        $icon = $currentOrder === 'asc' ? ' <i class="fas fa-arrow-up"></i>' : ' <i class="fas fa-arrow-down"></i>';
+    }
+    return "<a href=\"?$queryString\">$title$icon</a>";
+}
+
 $currentFolderId = $_GET['folder_id'] ?? null;
 ?>
 <!DOCTYPE html>
@@ -109,11 +131,49 @@ $currentFolderId = $_GET['folder_id'] ?? null;
 
             <div class="card files-list-card">
                  <div class="card-header">
-                     <span>Nom</span>
-                     <div class="bulk-actions-container">
-                        <form method="POST" id="bulk-action-form">
-                            <button type="submit" id="bulk-print-button" class="button button-secondary"><i class="fas fa-print"></i> Imprimer</button>
-                            <button type="submit" id="bulk-delete-button" class="button button-delete" formaction="/document/delete" onsubmit="return confirm('Confirmer la mise à la corbeille ?');"><i class="fas fa-trash"></i> Corbeille</button>
+                    <div class="header-main-actions">
+                         <div class="bulk-actions-container">
+                            <form method="POST" id="bulk-action-form">
+                                <button type="submit" id="bulk-print-button" class="button button-secondary"><i class="fas fa-print"></i> Imprimer</button>
+                                <button type="submit" id="bulk-delete-button" class="button button-delete" formaction="/document/delete" onsubmit="return confirm('Confirmer la mise à la corbeille ?');"><i class="fas fa-trash"></i> Corbeille</button>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-bar">
+                        <form method="GET" action="/" class="filter-form" style="display: contents;">
+                            <input type="hidden" name="sort" value="<?= htmlspecialchars($_GET['sort'] ?? 'created_at') ?>">
+                            <input type="hidden" name="order" value="<?= htmlspecialchars($_GET['order'] ?? 'desc') ?>">
+                            <?php if (isset($_GET['folder_id'])): ?>
+                                <input type="hidden" name="folder_id" value="<?= htmlspecialchars($_GET['folder_id']) ?>">
+                            <?php endif; ?>
+
+                            <div class="filter-group">
+                                <label for="filter-type"><i class="fas fa-file-alt"></i></label>
+                                <select name="mime_type" id="filter-type" onchange="this.form.submit()">
+                                    <option value="">Type de fichier</option>
+                                    <option value="application/pdf" <?= ($_GET['mime_type'] ?? '') == 'application/pdf' ? 'selected' : '' ?>>PDF</option>
+                                    <option value="image" <?= ($_GET['mime_type'] ?? '') == 'image' ? 'selected' : '' ?>>Image</option>
+                                    <option value="word" <?= ($_GET['mime_type'] ?? '') == 'word' ? 'selected' : '' ?>>Document Word</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label for="filter-source"><i class="fas fa-satellite-dish"></i></label>
+                                <select name="source" id="filter-source" onchange="this.form.submit()">
+                                    <option value="">Source</option>
+                                    <option value="email" <?= ($_GET['source'] ?? '') == 'email' ? 'selected' : '' ?>>Email</option>
+                                    <option value="manual" <?= ($_GET['source'] ?? '') == 'manual' ? 'selected' : '' ?>>Manuel</option>
+                                </select>
+                            </div>
+                            
+                            <?php if (!empty($_GET['mime_type']) || !empty($_GET['source'])): 
+                                $resetParams = [];
+                                if (isset($_GET['folder_id'])) $resetParams['folder_id'] = $_GET['folder_id'];
+                                $resetUrl = "/" . (empty($resetParams) ? '' : '?' . http_build_query($resetParams));
+                            ?>
+                                <a href="<?= $resetUrl ?>" class="button-icon" title="Réinitialiser les filtres"><i class="fas fa-times-circle"></i></a>
+                            <?php endif; ?>
                         </form>
                     </div>
                  </div>
@@ -124,9 +184,10 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                 <tr>
                                     <th class="col-checkbox"><input type="checkbox" id="select-all-checkbox" title="Tout sélectionner"></th>
                                     <th class="col-icon"></th>
-                                    <th>Nom</th>
-                                    <th class="col-size">Taille</th>
-                                    <th class="col-date">Date d'ajout</th>
+                                    <th><?= getSortLink('name', 'Nom') ?></th>
+                                    <th>Source</th>
+                                    <th class="col-size"><?= getSortLink('size', 'Taille') ?></th>
+                                    <th class="col-date"><?= getSortLink('created_at', 'Date d\'ajout') ?></th>
                                     <th class="col-actions"></th>
                                 </tr>
                             </thead>
@@ -139,6 +200,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                             <td class="col-checkbox"></td>
                                             <td class="col-icon"><i class="fas fa-folder folder-icon-color"></i></td>
                                             <td><a href="/?folder_id=<?= $item['id'] ?>" class="folder-link"><?= htmlspecialchars($item['name']) ?></a></td>
+                                            <td></td>
                                             <td class="col-size">--</td>
                                             <td class="col-date"></td>
                                             <td class="col-actions"></td>
@@ -151,6 +213,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                                 <span class="status-dot" style="background-color: <?= $status_map[$item['status']]['color'] ?? '#6c757d' ?>;" title="<?= $status_map[$item['status']]['label'] ?? 'Inconnu' ?>"></span>
                                                 <strong><?= htmlspecialchars($item['name']) ?></strong>
                                             </td>
+                                            <td><?= htmlspecialchars($item['source_details'] ?? 'N/A') ?></td>
                                             <td class="col-size"><?= formatSizeUnits($item['size']) ?></td>
                                             <td class="col-date"><?= date('d/m/Y H:i', strtotime($item['created_at'])) ?></td>
                                             <td class="col-actions">
@@ -163,7 +226,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="6" class="empty-state"><?= (isset($_GET['q'])) ? 'Aucun résultat trouvé.' : 'Ce dossier est vide.'; ?></td></tr>
+                                <tr><td colspan="7" class="empty-state"><?= (isset($_GET['q']) || !empty(array_filter($_GET))) ? 'Aucun résultat trouvé.' : 'Ce dossier est vide.'; ?></td></tr>
                             <?php endif; ?>
                             </tbody>
                         </table>
@@ -184,7 +247,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                 <?php endif; ?>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <p class="empty-state"><?= (isset($_GET['q'])) ? 'Aucun résultat trouvé.' : 'Ce dossier est vide.'; ?></p>
+                            <p class="empty-state"><?= (isset($_GET['q']) || !empty(array_filter($_GET))) ? 'Aucun résultat trouvé.' : 'Ce dossier est vide.'; ?></p>
                         <?php endif; ?>
                     </div>
                  </div>
@@ -246,5 +309,6 @@ $currentFolderId = $_GET['folder_id'] ?? null;
     <script src="/js/home/dnd.js"></script>
     <script src="/js/home/printQueue.js"></script>
     <script src="/js/home/websocket.js"></script>
-    <script src="/js/home/main.js"></script> </body>
+    <script src="/js/home/main.js"></script> 
+</body>
 </html>

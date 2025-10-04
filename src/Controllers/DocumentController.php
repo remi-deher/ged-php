@@ -19,7 +19,7 @@ class DocumentController
     private FolderService $folderService;
     private PrintService $printService;
     private TrashService $trashService;
-    private DocumentRepository $documentRepository; // Gardé pour les actions simples
+    private DocumentRepository $documentRepository;
     private FolderRepository $folderRepository;
 
     public function __construct()
@@ -39,10 +39,18 @@ class DocumentController
         $currentFolderId = isset($_GET['folder_id']) && $_GET['folder_id'] !== 'root' ? (int)$_GET['folder_id'] : null;
         $searchQuery = $_GET['q'] ?? null;
         
+        $sort = $_GET['sort'] ?? 'created_at';
+        $order = $_GET['order'] ?? 'desc';
+        
+        $filters = [
+            'mime_type' => $_GET['mime_type'] ?? null,
+            'source' => $_GET['source'] ?? null,
+        ];
+
         $folderTree = $this->folderService->getFolderTree();
         $breadcrumbs = $this->folderService->getBreadcrumbs($currentFolderId);
         $currentFolder = !empty($breadcrumbs) ? end($breadcrumbs) : null;
-        $items = $this->documentService->getItemsForFolder($currentFolderId, $searchQuery);
+        $items = $this->documentService->getItemsForFolder($currentFolderId, $searchQuery, $sort, $order, $filters);
         
         require_once dirname(__DIR__, 2) . '/templates/home.php';
     }
@@ -218,6 +226,7 @@ class DocumentController
     {
         if (!empty($_POST['doc_ids'])) {
             $this->trashService->moveToTrash($_POST['doc_ids']);
+            $this->notifyClients('document_deleted', ['doc_ids' => $_POST['doc_ids']]);
         }
         header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
         exit();
@@ -225,6 +234,10 @@ class DocumentController
 
     public function listTrash(): void
     {
+        // Charger l'arborescence des dossiers pour la barre latérale
+        $folderTree = $this->folderService->getFolderTree();
+        $currentFolderId = null; // Aucun dossier n'est sélectionné dans la corbeille
+
         $documents = $this->trashService->getTrashedDocuments();
         require_once dirname(__DIR__, 2) . '/templates/trash.php';
     }

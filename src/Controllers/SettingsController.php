@@ -5,8 +5,9 @@ namespace App\Controllers;
 
 use App\Core\Database;
 use App\Services\MicrosoftGraphService;
+use App\Services\FolderService; // AJOUTER CETTE LIGNE
 
-// Classes pour la bibliothèque d'impression digitalrevolution/ipp
+// ... (use statements pour la bibliothèque d'impression) ...
 use DR\Ipp\Ipp;
 use DR\Ipp\Entity\IppServer;
 use DR\Ipp\Entity\IppPrinter;
@@ -18,11 +19,13 @@ class SettingsController
 {
     private $settingsFile;
     private $printSettingsFile;
+    private FolderService $folderService; // AJOUTER CETTE LIGNE
 
     public function __construct()
     {
         $this->settingsFile = dirname(__DIR__, 2) . '/config/mail_settings.json';
         $this->printSettingsFile = dirname(__DIR__, 2) . '/config/print_settings.json';
+        $this->folderService = new FolderService(); // AJOUTER CETTE LIGNE
     }
 
     public function showSettings(): void
@@ -32,9 +35,15 @@ class SettingsController
         $pdo = Database::getInstance();
         $stmt = $pdo->query('SELECT id, name, default_printer_id FROM folders ORDER BY name ASC');
         $appFolders = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // AJOUT: Charger l'arborescence des dossiers et l'ID du dossier courant
+        $folderTree = $this->folderService->getFolderTree();
+        $currentFolderId = null; // Aucun dossier n'est sélectionné dans les réglages
+
         require_once dirname(__DIR__, 2) . '/templates/settings_tenant.php';
     }
 
+    // ... (Le reste de la classe reste inchangé) ...
     public function savePrinter(): void
     {
         $printers = $this->loadPrintSettings();
@@ -142,7 +151,6 @@ class SettingsController
 
             $response = $ipp->print($printer, $ippFile);
             
-            // --- CORRECTION FINALE APPLIQUÉE ICI ---
             $attributes = $response->getAttributes();
             $jobIdAttribute = $attributes['job-id'] ?? null;
 

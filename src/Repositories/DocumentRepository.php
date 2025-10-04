@@ -32,8 +32,17 @@ class DocumentRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function findByFolderAndQuery(?int $folderId, ?string $searchQuery): array
+    public function findByFolderAndQuery(?int $folderId, ?string $searchQuery, string $sort = 'created_at', string $order = 'desc', array $filters = []): array
     {
+        // Valider les colonnes de tri autorisées pour éviter l'injection SQL
+        $allowedSortColumns = ['name', 'size', 'created_at'];
+        if (!in_array($sort, $allowedSortColumns)) {
+            $sort = 'created_at';
+        }
+
+        // Valider l'ordre
+        $order = strtolower($order) === 'asc' ? 'ASC' : 'DESC';
+
         $sql = 'SELECT d.id, d.original_filename as name, d.status, d.created_at, d.parent_document_id, d.folder_id, d.source_account_id, d.size, d.mime_type 
                 FROM documents d 
                 WHERE d.deleted_at IS NULL';
@@ -48,7 +57,32 @@ class DocumentRepository
                 $params[':folder_id'] = $folderId;
             }
         }
-        $sql .= ' ORDER BY d.created_at DESC';
+        
+        // Ajout des filtres
+        if (!empty($filters['mime_type'])) {
+            if ($filters['mime_type'] === 'image') {
+                $sql .= ' AND d.mime_type LIKE :mime_type';
+                $params[':mime_type'] = 'image/%';
+            } else if ($filters['mime_type'] === 'word') {
+                 $sql .= ' AND (d.mime_type = :mime_word1 OR d.mime_type = :mime_word2)';
+                 $params[':mime_word1'] = 'application/msword';
+                 $params[':mime_word2'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+            } else {
+                $sql .= ' AND d.mime_type = :mime_type';
+                $params[':mime_type'] = $filters['mime_type'];
+            }
+        }
+        if (!empty($filters['source'])) {
+            if ($filters['source'] === 'email') {
+                $sql .= ' AND d.source_account_id IS NOT NULL';
+            } else if ($filters['source'] === 'manual') {
+                $sql .= ' AND d.source_account_id IS NULL';
+            }
+        }
+
+        // Appliquer le tri
+        $sortColumn = ($sort === 'name') ? 'd.original_filename' : 'd.' . $sort;
+        $sql .= " ORDER BY $sortColumn $order";
         
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);

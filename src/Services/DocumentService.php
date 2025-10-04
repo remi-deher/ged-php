@@ -5,19 +5,22 @@ namespace App\Services;
 
 use App\Repositories\DocumentRepository;
 use App\Repositories\FolderRepository;
+use App\Services\ConfigurationService;
 
 class DocumentService
 {
     private DocumentRepository $documentRepository;
     private FolderRepository $folderRepository;
+    private ConfigurationService $configService;
 
     public function __construct()
     {
         $this->documentRepository = new DocumentRepository();
         $this->folderRepository = new FolderRepository();
+        $this->configService = new ConfigurationService();
     }
 
-    public function getItemsForFolder(?int $folderId, ?string $searchQuery = null): array
+    public function getItemsForFolder(?int $folderId, ?string $searchQuery = null, string $sort = 'created_at', string $order = 'desc', array $filters = []): array
     {
         $items = [];
         if (!$searchQuery) {
@@ -28,11 +31,29 @@ class DocumentService
             }
         }
 
-        $allDocuments = $this->documentRepository->findByFolderAndQuery($folderId, $searchQuery);
+        $allDocuments = $this->documentRepository->findByFolderAndQuery($folderId, $searchQuery, $sort, $order, $filters);
+        
+        // Mapper les comptes pour un accès facile
+        $allMailSettings = $this->configService->loadMailSettings();
+        $accountsMap = [];
+        foreach ($allMailSettings as $tenant) {
+            foreach ($tenant['accounts'] as $account) {
+                $accountsMap[$account['id']] = $account;
+            }
+        }
         
         $documents = [];
         $attachmentsMap = [];
         foreach ($allDocuments as $doc) {
+            // Ajouter l'information de la source
+            if ($doc['source_account_id'] && isset($accountsMap[$doc['source_account_id']])) {
+                $doc['source_details'] = 'Email: ' . $accountsMap[$doc['source_account_id']]['user_email'];
+            } else if ($doc['source_account_id']) {
+                $doc['source_details'] = 'Source inconnue';
+            } else {
+                $doc['source_details'] = 'Manuel';
+            }
+
             if ($doc['parent_document_id'] !== null) {
                 $attachmentsMap[$doc['parent_document_id']][] = $doc;
             } else {
