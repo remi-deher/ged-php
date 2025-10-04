@@ -98,6 +98,9 @@ switch ($requestUri) {
     case '/document/move':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->moveDocument();
         break;
+    case '/folder/move':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->moveFolder();
+        break;
         
     default:
         http_response_code(404);

@@ -196,11 +196,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let currentDocId = null;
 
         document.addEventListener('contextmenu', e => {
-            // S'applique uniquement aux documents, pas aux dossiers
-            const targetRow = e.target.closest('.document-row:not(.folder-row)');
+            const targetRow = e.target.closest('.document-row, .folder-row');
             if (targetRow) {
                 e.preventDefault();
-                currentDocId = targetRow.dataset.docId;
+                currentDocId = targetRow.dataset.docId || targetRow.dataset.folderId;
                 contextMenu.style.top = `${e.clientY}px`;
                 contextMenu.style.left = `${e.clientX}px`;
                 contextMenu.style.display = 'block';
@@ -212,24 +211,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
         contextMenu.addEventListener('click', e => {
             const action = e.target.dataset.action;
-            if (!action || !currentDocId) return;
+            if (!action) return;
+
+            const selectedIds = Array.from(document.querySelectorAll('.doc-checkbox:checked')).map(cb => cb.value);
+            const targetIds = selectedIds.length > 0 ? selectedIds : [currentDocId];
+
+            if (targetIds.length === 0) return;
+
             switch (action) {
-                case 'preview_sidebar': window.openSidebarForDocument(currentDocId); break;
-                case 'preview_modal': window.openModalForDocument(currentDocId); break;
+                case 'preview_sidebar':
+                    if (targetIds.length === 1) window.openSidebarForDocument(targetIds[0]);
+                    break;
+                case 'preview_modal':
+                    if (targetIds.length === 1) window.openModalForDocument(targetIds[0]);
+                    break;
                 case 'print':
                     const printForm = document.createElement('form');
-                    printForm.method = 'POST'; printForm.action = '/document/print';
-                    printForm.innerHTML = `<input type="hidden" name="doc_id" value="${currentDocId}">`;
-                    document.body.appendChild(printForm); printForm.submit();
+                    printForm.method = 'POST';
+                    printForm.action = '/document/bulk-print';
+                    targetIds.forEach(id => {
+                        printForm.innerHTML += `<input type="hidden" name="doc_ids[]" value="${id}">`;
+                    });
+                    document.body.appendChild(printForm);
+                    printForm.submit();
                     break;
-                case 'download': window.open(`/document/download?id=${currentDocId}`, '_blank'); break;
-                case 'delete':
-                     if (confirm('Confirmer la mise à la corbeille ?')) {
-                        const deleteForm = document.createElement('form');
-                        deleteForm.method = 'POST'; deleteForm.action = '/document/delete';
-                        deleteForm.innerHTML = `<input type="hidden" name="doc_ids[]" value="${currentDocId}">`;
-                        document.body.appendChild(deleteForm); deleteForm.submit();
+                case 'download':
+                    if (targetIds.length === 1) {
+                        window.open(`/document/download?id=${targetIds[0]}`, '_blank');
+                    } else {
+                        targetIds.forEach(id => window.open(`/document/download?id=${id}`, '_blank'));
                     }
+                    break;
+                case 'delete':
+                    if (confirm('Confirmer la mise à la corbeille ?')) {
+                        const deleteForm = document.createElement('form');
+                        deleteForm.method = 'POST';
+                        deleteForm.action = '/document/delete';
+                        targetIds.forEach(id => {
+                            deleteForm.innerHTML += `<input type="hidden" name="doc_ids[]" value="${id}">`;
+                        });
+                        document.body.appendChild(deleteForm);
+                        deleteForm.submit();
+                    }
+                    break;
+                case 'move':
+                    alert('Pour déplacer, glissez et déposez les éléments sélectionnés sur un dossier.');
+                    console.log('Move items:', targetIds);
                     break;
             }
         });
@@ -306,16 +333,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
         draggables.forEach(draggable => {
             draggable.addEventListener('dragstart', e => {
-                // On détermine si on drague un dossier ou un document
-                const isFolder = draggable.classList.contains('folder-row');
-                const type = isFolder ? 'folder' : 'document';
-                const id = isFolder ? draggable.dataset.folderId : draggable.dataset.docId;
-                
-                e.dataTransfer.setData('application/json', JSON.stringify({ type, id }));
-                setTimeout(() => draggable.classList.add('dragging'), 0);
+                const selectedCheckboxes = document.querySelectorAll('.doc-checkbox:checked');
+                let draggedItems = [];
+
+                const isChecked = draggable.querySelector('.doc-checkbox')?.checked;
+
+                if (isChecked && selectedCheckboxes.length > 1) {
+                    selectedCheckboxes.forEach(checkbox => {
+                        const row = checkbox.closest('[draggable="true"]');
+                        const isFolder = row.classList.contains('folder-row');
+                        const type = isFolder ? 'folder' : 'document';
+                        const id = isFolder ? row.dataset.folderId : row.dataset.docId;
+                        if (id) {
+                            draggedItems.push({ type, id });
+                        }
+                    });
+                } else {
+                    const isFolder = draggable.classList.contains('folder-row');
+                    const type = isFolder ? 'folder' : 'document';
+                    const id = isFolder ? draggable.dataset.folderId : draggable.dataset.docId;
+                    if (id) {
+                        draggedItems.push({ type, id });
+                    }
+                }
+
+                if (draggedItems.length > 0) {
+                    e.dataTransfer.setData('application/json', JSON.stringify(draggedItems));
+                    setTimeout(() => {
+                        draggedItems.forEach(item => {
+                            const el = document.querySelector(`[data-doc-id="${item.id}"], [data-folder-id="${item.id}"]`);
+                            if (el) el.classList.add('dragging');
+                        });
+                    }, 0);
+                } else {
+                    e.preventDefault();
+                }
             });
-            draggable.addEventListener('dragend', () => draggable.classList.remove('dragging'));
+
+            draggable.addEventListener('dragend', () => {
+                document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+            });
         });
+
 
         dropzones.forEach(zone => {
             zone.addEventListener('dragover', e => {
@@ -329,41 +388,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 zone.classList.remove('drag-over');
 
-                const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                const items = JSON.parse(e.dataTransfer.getData('application/json'));
                 const targetFolderId = zone.dataset.folderId;
                 
-                if (!data || typeof targetFolderId === 'undefined') return;
+                if (!items || items.length === 0 || typeof targetFolderId === 'undefined') return;
 
-                // Empêcher de déposer un dossier sur lui-même
-                if (data.type === 'folder' && data.id === targetFolderId) return;
+                const docIds = items.filter(item => item.type === 'document').map(item => item.id);
+                const folderIds = items.filter(item => item.type === 'folder').map(item => item.id);
 
-                let url, body;
-                const formData = new FormData();
-                
-                if (data.type === 'document') {
-                    url = '/document/move';
-                    formData.append('doc_id', data.id);
-                    formData.append('folder_id', targetFolderId);
-                } else if (data.type === 'folder') {
-                    url = '/folder/move'; // Assurez-vous que cette route existe dans index.php
-                    formData.append('folder_id_to_move', data.id);
-                    formData.append('target_folder_id', targetFolderId);
-                } else {
+                if (folderIds.includes(targetFolderId)) {
+                    showToast('Un dossier ne peut pas être déplacé dans lui-même.', '⚠️');
                     return;
                 }
 
                 try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                        body: formData
-                    });
-                    const result = await response.json();
-                    if (!response.ok || !result.success) throw new Error(result.message || 'Erreur lors du déplacement.');
+                    let moved = false;
+                    if (docIds.length > 0) {
+                        const formData = new FormData();
+                        docIds.forEach(id => formData.append('doc_ids[]', id));
+                        formData.append('folder_id', targetFolderId);
 
-                    showToast(result.message, '📁');
-                    // Recharger la page pour voir les changements
-                    setTimeout(() => window.location.reload(), 1000);
+                        const response = await fetch('/document/move', {
+                            method: 'POST',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                            body: formData
+                        });
+                        const result = await response.json();
+                        if (!response.ok || !result.success) throw new Error(result.message || 'Erreur lors du déplacement des documents.');
+                        moved = true;
+                    }
+
+                    if (folderIds.length > 0) {
+                        const formData = new FormData();
+                        folderIds.forEach(id => formData.append('folder_ids[]', id));
+                        formData.append('target_folder_id', targetFolderId);
+                        
+                        // Assurez-vous que la route /folder/move existe et gère les tableaux
+                        const response = await fetch('/folder/move', {
+                            method: 'POST',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                            body: formData
+                        });
+                        const result = await response.json();
+                        if (!response.ok || !result.success) throw new Error(result.message || 'Erreur lors du déplacement des dossiers.');
+                        moved = true;
+                    }
+
+                    if (moved) {
+                        showToast('Déplacement réussi.', '📁');
+                        setTimeout(() => window.location.reload(), 1000);
+                    }
 
                 } catch (error) {
                     showToast(`Erreur : ${error.message}`, '⚠️');

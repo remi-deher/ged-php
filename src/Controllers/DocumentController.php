@@ -425,18 +425,29 @@ class DocumentController
     public function moveDocument(): void
     {
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-        if (isset($_POST['doc_id'], $_POST['folder_id'])) {
+        
+        $docIds = [];
+        if (isset($_POST['doc_id'])) {
+            $docIds[] = (int)$_POST['doc_id'];
+        } elseif (isset($_POST['doc_ids']) && is_array($_POST['doc_ids'])) {
+            $docIds = array_map('intval', $_POST['doc_ids']);
+        }
+
+        if (!empty($docIds) && isset($_POST['folder_id'])) {
             try {
-                $docId = (int)$_POST['doc_id'];
                 $folderId = $_POST['folder_id'] === 'root' ? null : (int)$_POST['folder_id'];
                 
                 $pdo = Database::getInstance();
-                $stmt = $pdo->prepare("UPDATE documents SET folder_id = ? WHERE id = ?");
-                $stmt->execute([$folderId, $docId]);
+                
+                $inQuery = implode(',', array_fill(0, count($docIds), '?'));
+                $stmt = $pdo->prepare("UPDATE documents SET folder_id = ? WHERE id IN ($inQuery)");
+                
+                $params = array_merge([$folderId], $docIds);
+                $stmt->execute($params);
 
                 if ($isAjax) {
                     header('Content-Type: application/json');
-                    echo json_encode(['success' => true, 'message' => 'Document déplacé avec succès.']);
+                    echo json_encode(['success' => true, 'message' => 'Document(s) déplacé(s) avec succès.']);
                     exit();
                 }
             } catch (\Exception $e) {
@@ -449,11 +460,27 @@ class DocumentController
                 exit();
             }
         }
+
         if (!$isAjax) {
             header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
             exit();
         }
     }
+
+    public function moveFolder(): void
+    {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+        
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Le déplacement de dossier n\'est pas encore implémenté.']);
+            exit();
+        }
+        
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+        exit();
+    }
+
 
     private function notifyClients(string $action, array $data): void
     {

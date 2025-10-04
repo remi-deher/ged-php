@@ -83,7 +83,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
             <div class="content-header">
                 <div class="breadcrumb">
                     <h1>
-                        <a href="/" class="breadcrumb-link" id="root-dropzone" data-folder-id="root"><i class="fas fa-home"></i></a>
+                        <a href="/" class="breadcrumb-link dropzone" id="root-dropzone" data-folder-id="root"><i class="fas fa-home"></i></a>
                         <?php if (isset($breadcrumbs) && !empty($breadcrumbs)): ?>
                             <?php foreach ($breadcrumbs as $crumb): ?>
                                 / <a href="/?folder_id=<?= $crumb['id'] ?>"><?= htmlspecialchars($crumb['name']) ?></a>
@@ -135,7 +135,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                 <?php $status_map = ['received' => ['color' => '#007bff', 'label' => 'Reçu'], 'to_print' => ['color' => '#ffc107', 'label' => 'À imprimer'], 'printed' => ['color' => '#28a745', 'label' => 'Imprimé'], 'print_error' => ['color' => '#dc3545', 'label' => 'Erreur']]; ?>
                                 <?php foreach ($items as $item): ?>
                                     <?php if ($item['type'] === 'folder'): ?>
-                                        <tr data-folder-id="<?= $item['id'] ?>" class="folder-row dropzone">
+                                        <tr data-folder-id="<?= $item['id'] ?>" class="folder-row dropzone" draggable="true">
                                             <td class="col-checkbox"></td>
                                             <td class="col-icon"><i class="fas fa-folder folder-icon-color"></i></td>
                                             <td><a href="/?folder_id=<?= $item['id'] ?>" class="folder-link"><?= htmlspecialchars($item['name']) ?></a></td>
@@ -172,7 +172,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                         <?php if (isset($items) && !empty($items)): ?>
                             <?php foreach ($items as $item): ?>
                                 <?php if ($item['type'] === 'folder'): ?>
-                                    <a href="/?folder_id=<?= $item['id'] ?>" class="grid-item folder-row dropzone" data-folder-id="<?= $item['id'] ?>">
+                                    <a href="/?folder_id=<?= $item['id'] ?>" class="grid-item folder-row dropzone" data-folder-id="<?= $item['id'] ?>" draggable="true">
                                         <div class="grid-item-thumbnail"><i class="fas fa-folder folder-icon-color"></i></div>
                                         <div class="grid-item-name" title="<?= htmlspecialchars($item['name']) ?>"><?= htmlspecialchars($item['name']) ?></div>
                                     </a>
@@ -231,6 +231,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
         <li data-action="preview_modal">📖 Ouvrir en grand</li>
         <li data-action="print">🖨️ Imprimer</li>
         <li data-action="download">📥 Télécharger</li>
+        <li data-action="move">➔ Déplacer</li>
         <li data-action="delete" class="separator">🗑️ Mettre à la corbeille</li>
     </ul>
     <div id="toast-container"></div>
