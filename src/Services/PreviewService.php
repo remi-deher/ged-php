@@ -41,7 +41,7 @@ class PreviewService
             throw new RuntimeException('Fichier non trouvé sur le serveur.', 404);
         }
 
-        // --- NOUVEAU : Gestion améliorée des types de fichiers ---
+        // --- Gestion améliorée des types de fichiers ---
 
         // Cas 1: Fichiers texte et HTML affichés nativement
         if (str_starts_with($doc['mime_type'], 'text/html') || str_starts_with($doc['mime_type'], 'text/plain')) {
@@ -135,10 +135,19 @@ class PreviewService
     }
     
     /**
-     * NOUVELLE MÉTHODE : Convertit un fichier CSV en un tableau HTML simple.
+     * Convertit un fichier CSV en un tableau HTML, en gérant les encodages.
      */
     private function convertCsvToHtml(string $sourcePath, string $destinationPath, string $originalFilename): array
     {
+        // Lire le contenu brut du fichier
+        $csvContent = file_get_contents($sourcePath);
+        
+        // CORRECTION : Détection d'encodage plus robuste
+        $encoding = mb_detect_encoding($csvContent, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true);
+        if ($encoding && $encoding !== 'UTF-8') {
+            $csvContent = mb_convert_encoding($csvContent, 'UTF-8', $encoding);
+        }
+
         $html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">';
         $html .= '<title>Aperçu de ' . htmlspecialchars($originalFilename) . '</title>';
         $html .= '<style>
@@ -151,9 +160,13 @@ class PreviewService
         $html .= '<h1>' . htmlspecialchars($originalFilename) . '</h1>';
         $html .= '<table>';
 
-        if (($handle = fopen($sourcePath, "r")) !== FALSE) {
+        // Utiliser un flux en mémoire pour lire le contenu converti
+        $handle = fopen('php://memory', 'r+');
+        fwrite($handle, $csvContent);
+        rewind($handle);
+
+        if ($handle !== FALSE) {
             $isHeader = true;
-            // CORRECTION APPLIQUÉE ICI pour supprimer l'avertissement de dépréciation
             while (($data = fgetcsv($handle, 2000, ";", '"', "\\")) !== FALSE) {
                 if ($isHeader) {
                     $html .= '<thead><tr>';
