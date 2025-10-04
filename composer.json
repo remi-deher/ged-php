@@ -10,7 +10,8 @@
         "thenetworg/oauth2-azure": "^2.2",
         "microsoft/microsoft-graph": "^2.48",
         "digitalrevolution/ipp": "^0.2.2",
-        "guzzlehttp/guzzle": "^7.0"
+        "guzzlehttp/guzzle": "^7.0",
+        "phpoffice/phpspreadsheet": "^2.1"
     },
     "autoload": {
         "psr-4": {
