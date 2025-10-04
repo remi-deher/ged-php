@@ -5,9 +5,9 @@ namespace App\Controllers;
 
 use App\Core\Database;
 use App\Services\MicrosoftGraphService;
-use App\Services\FolderService; // AJOUTER CETTE LIGNE
+use App\Services\FolderService;
 
-// ... (use statements pour la bibliothèque d'impression) ...
+// Classes pour la bibliothèque d'impression digitalrevolution/ipp
 use DR\Ipp\Ipp;
 use DR\Ipp\Entity\IppServer;
 use DR\Ipp\Entity\IppPrinter;
@@ -19,13 +19,13 @@ class SettingsController
 {
     private $settingsFile;
     private $printSettingsFile;
-    private FolderService $folderService; // AJOUTER CETTE LIGNE
+    private FolderService $folderService;
 
     public function __construct()
     {
         $this->settingsFile = dirname(__DIR__, 2) . '/config/mail_settings.json';
         $this->printSettingsFile = dirname(__DIR__, 2) . '/config/print_settings.json';
-        $this->folderService = new FolderService(); // AJOUTER CETTE LIGNE
+        $this->folderService = new FolderService();
     }
 
     public function showSettings(): void
@@ -35,15 +35,51 @@ class SettingsController
         $pdo = Database::getInstance();
         $stmt = $pdo->query('SELECT id, name, default_printer_id FROM folders ORDER BY name ASC');
         $appFolders = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        // AJOUT: Charger l'arborescence des dossiers et l'ID du dossier courant
+        
         $folderTree = $this->folderService->getFolderTree();
-        $currentFolderId = null; // Aucun dossier n'est sélectionné dans les réglages
+        $currentFolderId = null;
 
         require_once dirname(__DIR__, 2) . '/templates/settings_tenant.php';
     }
 
-    // ... (Le reste de la classe reste inchangé) ...
+    public function ajaxListFolders(): void
+    {
+        // Nettoyer tout output précédent pour garantir une réponse JSON pure
+        ob_start();
+        header('Content-Type: application/json');
+
+        // MODIFICATION: Remplacer \Exception par \Throwable pour tout intercepter
+        try {
+            $tenantId = $_POST['tenant_id'] ?? null;
+            $userEmail = $_POST['user_email'] ?? null;
+            if (!$tenantId || !$userEmail) {
+                throw new \Exception("ID du tenant ou e-mail manquant.");
+            }
+            $tenant = $this->findTenantById($tenantId);
+            if (!$tenant) {
+                throw new \Exception("Tenant non trouvé.");
+            }
+            $credentials = $tenant['graph'];
+            if (empty($credentials['client_secret'])) {
+                throw new \Exception("Le Secret Client n'est pas configuré pour ce tenant.");
+            }
+            $graphService = new MicrosoftGraphService($credentials);
+            $folders = $graphService->listMailFolders($userEmail);
+            
+            ob_end_clean(); // Nettoyer le buffer avant d'envoyer la réponse
+            echo json_encode(['folders' => $folders]);
+
+        } catch (\Throwable $e) {
+            ob_end_clean(); // Nettoyer le buffer en cas d'erreur aussi
+            http_response_code(500);
+            error_log("Graph API Error: " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
+            echo json_encode(['error' => 'La connexion a échoué: ' . $e->getMessage()]);
+        }
+        exit(); // S'assurer que le script s'arrête ici
+    }
+    
+    // ... (Le reste des méthodes de la classe reste inchangé) ...
+
     public function savePrinter(): void
     {
         $printers = $this->loadPrintSettings();
@@ -282,27 +318,6 @@ class SettingsController
         $this->saveSettings($tenants);
         header('Location: /settings');
         exit();
-    }
-
-    public function ajaxListFolders(): void
-    {
-        header('Content-Type: application/json');
-        try {
-            $tenantId = $_POST['tenant_id'] ?? null;
-            $userEmail = $_POST['user_email'] ?? null;
-            if (!$tenantId || !$userEmail) throw new \Exception("ID du tenant ou e-mail manquant.");
-            $tenant = $this->findTenantById($tenantId);
-            if (!$tenant) throw new \Exception("Tenant non trouvé.");
-            $credentials = $tenant['graph'];
-            if (empty($credentials['client_secret'])) throw new \Exception("Le Secret Client n'est pas configuré pour ce tenant.");
-            $graphService = new MicrosoftGraphService($credentials);
-            $folders = $graphService->listMailFolders($userEmail);
-            echo json_encode(['folders' => $folders]);
-        } catch (\Exception $e) {
-            http_response_code(500);
-            error_log("Graph API Error: " . $e->getMessage());
-            echo json_encode(['error' => 'La connexion a échoué: ' . $e->getMessage()]);
-        }
     }
 
     public function ajaxCreateFolder(): void
