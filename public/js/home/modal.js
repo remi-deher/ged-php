@@ -10,8 +10,10 @@ GED.home.modal = {
         this.titleEl = document.getElementById('modal-title');
         this.attachmentsListEl = document.getElementById('modal-attachments-list');
         this.previewIframeEl = document.getElementById('modal-preview-iframe');
-        this.previewDocTitleEl = document.getElementById('preview-doc-title');
-        this.previewNewTabBtn = document.getElementById('preview-new-tab');
+        
+        // Suppression des références aux anciens éléments qui n'existent plus
+        // this.previewDocTitleEl = document.getElementById('preview-doc-title');
+        // this.previewNewTabBtn = document.getElementById('preview-new-tab');
         
         this.modalEl.querySelector('.modal-close')?.addEventListener('click', () => this.close());
         this.modalEl.addEventListener('click', (e) => {
@@ -20,10 +22,13 @@ GED.home.modal = {
 
         const attachmentsToggleBtn = document.getElementById('modal-attachments-toggle-btn');
         const attachmentsPanel = document.getElementById('modal-attachments');
-        attachmentsToggleBtn?.addEventListener('click', () => {
-            attachmentsPanel?.classList.toggle('collapsed');
+
+        // Au clic sur l'en-tête, on bascule la classe 'collapsed'
+        attachmentsPanel?.querySelector('.attachments-header')?.addEventListener('click', () => {
+            attachmentsPanel.classList.toggle('collapsed');
             const isCollapsed = attachmentsPanel.classList.contains('collapsed');
-            attachmentsToggleBtn.innerHTML = isCollapsed ? '›' : '‹';
+            // On change l'icône et le titre en fonction de l'état
+            attachmentsToggleBtn.innerHTML = isCollapsed ? 'ˇ' : 'ˆ';
             attachmentsToggleBtn.title = isCollapsed ? 'Afficher les pièces jointes' : 'Masquer les pièces jointes';
         });
     },
@@ -33,12 +38,10 @@ GED.home.modal = {
         
         this.modalEl.style.display = 'flex';
         
-        // AJOUT DE VÉRIFICATIONS "DÉFENSIVES" POUR ÉVITER LES ERREURS
+        // Réinitialisation de l'affichage
         if (this.titleEl) this.titleEl.textContent = 'Chargement...';
         if (this.attachmentsListEl) this.attachmentsListEl.innerHTML = '<li>Chargement...</li>';
         if (this.previewIframeEl) this.previewIframeEl.src = 'about:blank';
-        if (this.previewDocTitleEl) this.previewDocTitleEl.textContent = '';
-        if (this.previewNewTabBtn) this.previewNewTabBtn.href = '#';
 
         try {
             const response = await fetch(`/document/details?id=${docId}`);
@@ -50,16 +53,11 @@ GED.home.modal = {
             const previewUrl = `/document/preview?id=${data.main_document.id}`;
             if (this.previewIframeEl) this.previewIframeEl.src = previewUrl;
 
-            if (this.previewDocTitleEl) this.previewDocTitleEl.textContent = data.main_document.original_filename;
-            if (this.previewNewTabBtn) this.previewNewTabBtn.href = previewUrl;
-
             const attachmentsPanel = document.getElementById('modal-attachments');
-            const attachmentsToggleBtn = document.getElementById('modal-attachments-toggle-btn');
             
-            if (attachmentsPanel && attachmentsToggleBtn) {
+            if (attachmentsPanel) {
                 if (data.attachments && data.attachments.length > 0) {
                     attachmentsPanel.style.display = 'block';
-                    attachmentsToggleBtn.style.display = 'block';
                     this.attachmentsListEl.innerHTML = '';
                     data.attachments.forEach(attachment => {
                         const li = document.createElement('li');
@@ -68,7 +66,6 @@ GED.home.modal = {
                     });
                 } else {
                      attachmentsPanel.style.display = 'none';
-                     attachmentsToggleBtn.style.display = 'none';
                 }
             }
         } catch (error) {

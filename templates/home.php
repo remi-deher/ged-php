@@ -272,9 +272,26 @@ $currentFolderId = $_GET['folder_id'] ?? null;
         </aside>
     </div>
     
-    <div id="document-modal" class="modal-overlay" style="display: none;">
+<div id="document-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modal-title"></h2>
+            <button class="modal-close">&times;</button>
         </div>
-
+        <div class="modal-body email-layout">
+            <div id="modal-attachments" class="attachments-panel-top">
+                <div class="attachments-header">
+                    <h3>Pièces jointes</h3>
+                    <button id="modal-attachments-toggle-btn" title="Masquer les pièces jointes">ˆ</button>
+                </div>
+                <ul id="modal-attachments-list"></ul>
+            </div>
+            <div class="preview-container">
+                <iframe id="modal-preview-iframe" src="about:blank" frameborder="0"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
     <ul id="context-menu" class="context-menu">
         <li data-action="create-folder">➕ Nouveau dossier</li>
         <li class="separator item-specific"></li>

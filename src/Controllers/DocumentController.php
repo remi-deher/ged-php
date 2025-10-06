@@ -72,12 +72,35 @@ class DocumentController
 
     public function previewDocument(int $docId): void
     {
+        // On récupère d'abord les métadonnées du document
+        $document = $this->documentRepository->find($docId);
+
+        if (!$document) {
+            http_response_code(404);
+            echo "<h1>Document non trouvé</h1>";
+            exit;
+        }
+
+        // Si le document est un e-mail HTML, on l'affiche directement
+        if ($document['mime_type'] === 'text/html') {
+            $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
+            if (!file_exists($filePath)) {
+                http_response_code(404);
+                echo "<h1>Fichier non trouvé sur le serveur</h1>";
+                exit;
+            }
+
+            header_remove('X-Frame-Options'); // Permet l'affichage en iframe
+            header('Content-Type: text/html; charset=utf-8');
+            readfile($filePath);
+            exit;
+        }
+
+        // Pour tous les autres types de fichiers, on utilise la logique de prévisualisation existante
         try {
             $preview = $this->previewService->getPreview($docId);
 
-            // Permet l'affichage dans un iframe
             header_remove('X-Frame-Options');
-
             header('Content-Type: ' . $preview['mimeType']);
             header('Content-Disposition: inline; filename="' . basename($preview['fileName']) . '"');
             header('Content-Length: ' . filesize($preview['filePath']));
