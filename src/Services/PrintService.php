@@ -4,6 +4,7 @@
 namespace App\Services;
 
 use App\Repositories\DocumentRepository;
+use App\Repositories\FolderRepository;
 use App\Services\ConfigurationService;
 use Exception;
 
@@ -30,7 +31,46 @@ class PrintService
             if (empty($printers)) {
                 throw new Exception("Aucune imprimante n'est configurée dans l'application.");
             }
-            $defaultPrinter = $printers[0]; // Utilise la première comme imprimante par défaut
+
+            // --- NOUVELLE LOGIQUE DE SÉLECTION D'IMPRIMANTE ---
+            $printerToUse = null;
+
+            // 1. Chercher une imprimante par défaut pour le dossier du document
+            if ($document['folder_id']) {
+                $folderRepo = new FolderRepository();
+                $folder = $folderRepo->find($document['folder_id']);
+                if ($folder && $folder['default_printer_id']) {
+                    foreach ($printers as $p) {
+                        if ($p['id'] === $folder['default_printer_id']) {
+                            $printerToUse = $p;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 2. Si pas trouvée, chercher une imprimante par défaut pour le compte source
+            if (!$printerToUse && $document['source_account_id']) {
+                $mailSettings = $this->configService->loadMailSettings();
+                foreach ($mailSettings as $tenant) {
+                    foreach ($tenant['accounts'] as $account) {
+                        if ($account['id'] === $document['source_account_id'] && !empty($account['default_printer_id'])) {
+                            foreach ($printers as $p) {
+                                if ($p['id'] === $account['default_printer_id']) {
+                                    $printerToUse = $p;
+                                    break 2; // Sort des deux boucles
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 3. Sinon, utiliser la première imprimante comme défaut global
+            if (!$printerToUse) {
+                $printerToUse = $printers[0];
+            }
+            // --- FIN DE LA NOUVELLE LOGIQUE ---
 
             $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
             if (!file_exists($filePath)) {
@@ -39,7 +79,7 @@ class PrintService
 
             $command = sprintf(
                 'lp -d %s %s 2>&1',
-                escapeshellarg($defaultPrinter['name']),
+                escapeshellarg($printerToUse['name']), // Utilise l'imprimante sélectionnée
                 escapeshellarg($filePath)
             );
 
@@ -47,7 +87,7 @@ class PrintService
 
             if (preg_match('/request id is .*?-(\d+)/', $output, $matches)) {
                 $jobId = $matches[1];
-                $this->documentRepository->updatePrintJob($docId, $defaultPrinter['name'] . '-' . $jobId);
+                $this->documentRepository->updatePrintJob($docId, $printerToUse['name'] . '-' . $jobId);
             } else {
                 throw new Exception("Échec de l'envoi à CUPS. Réponse: " . $output);
             }

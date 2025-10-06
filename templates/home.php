@@ -58,6 +58,8 @@ function getSortLink(string $column, string $title): string {
 }
 
 $currentFolderId = $_GET['folder_id'] ?? null;
+$status_map = ['received' => ['color' => '#007bff', 'label' => 'Reçu'], 'to_print' => ['color' => '#ffc107', 'label' => 'À imprimer'], 'printed' => ['color' => '#28a745', 'label' => 'Imprimé'], 'print_error' => ['color' => '#dc3545', 'label' => 'Erreur']];
+
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -122,15 +124,20 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                     </h1>
                 </div>
                 <div class="content-actions">
-                     <form action="/folder/create" method="POST" class="create-folder-form">
+                    <div class="dropdown">
+                        <button id="add-btn" class="button"><i class="fas fa-plus"></i> Ajouter</button>
+                        <div id="add-dropdown" class="dropdown-content">
+                            <a href="#" id="new-folder-btn"><i class="fas fa-folder-plus"></i> Nouveau dossier</a>
+                            <a href="#" id="upload-file-btn"><i class="fas fa-file-upload"></i> Importer un fichier</a>
+                        </div>
+                    </div>
+                    <form action="/folder/create" method="POST" id="new-folder-form" style="display: none;">
                         <input type="hidden" name="parent_id" value="<?= htmlspecialchars($currentFolder ? $currentFolder['id'] : '') ?>">
-                        <input type="text" name="folder_name" placeholder="Nouveau dossier" required>
-                        <button type="submit" class="button"><i class="fas fa-plus"></i></button>
+                        <input type="text" name="folder_name" placeholder="Nom du dossier" required>
                     </form>
-                    <form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
+                    <form action="/upload" method="post" enctype="multipart/form-data" id="upload-form" style="display: none;">
                         <input type="hidden" name="folder_id" value="<?= htmlspecialchars($currentFolder ? $currentFolder['id'] : '') ?>">
-                        <label for="document" class="button"><i class="fas fa-upload"></i> Envoyer</label>
-                        <input type="file" name="document" id="document" onchange="this.form.submit()" multiple>
+                        <input type="file" name="documents[]" id="document-input" multiple>
                     </form>
                 </div>
             </div>
@@ -147,39 +154,52 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                     </div>
                     
                     <div class="filter-bar">
-                        <form method="GET" action="/" class="filter-form" style="display: contents;">
-                            <input type="hidden" name="sort" value="<?= htmlspecialchars($_GET['sort'] ?? 'created_at') ?>">
-                            <input type="hidden" name="order" value="<?= htmlspecialchars($_GET['order'] ?? 'desc') ?>">
-                            <?php if (isset($_GET['folder_id'])): ?>
-                                <input type="hidden" name="folder_id" value="<?= htmlspecialchars($_GET['folder_id']) ?>">
-                            <?php endif; ?>
-                            <div class="filter-group">
-                                <label for="filter-type"><i class="fas fa-file-alt"></i></label>
-                                <select name="mime_type" id="filter-type" onchange="this.form.submit()">
-                                    <option value="">Type de fichier</option>
+                        <div id="filter-pills-container" class="filter-pills"></div>
+                        <button id="advanced-filter-btn" class="button-icon" title="Plus de filtres"><i class="fas fa-sliders-h"></i></button>
+                    </div>
+                 </div>
+
+                 <div id="advanced-filter-panel" class="advanced-filters" style="display: none;">
+                    <form method="GET" action="/" id="filter-form">
+                        <input type="hidden" name="sort" value="<?= htmlspecialchars($_GET['sort'] ?? 'created_at') ?>">
+                        <input type="hidden" name="order" value="<?= htmlspecialchars($_GET['order'] ?? 'desc') ?>">
+                        <?php if (isset($_GET['folder_id'])): ?>
+                            <input type="hidden" name="folder_id" value="<?= htmlspecialchars($_GET['folder_id']) ?>">
+                        <?php endif; ?>
+                        <div class="filter-grid">
+                            <div class="form-group">
+                                <label for="filter-type">Type de fichier</label>
+                                <select name="mime_type" id="filter-type">
+                                    <option value="">Tous</option>
                                     <option value="application/pdf" <?= ($_GET['mime_type'] ?? '') == 'application/pdf' ? 'selected' : '' ?>>PDF</option>
                                     <option value="image" <?= ($_GET['mime_type'] ?? '') == 'image' ? 'selected' : '' ?>>Image</option>
                                     <option value="word" <?= ($_GET['mime_type'] ?? '') == 'word' ? 'selected' : '' ?>>Document Word</option>
                                 </select>
                             </div>
-                            <div class="filter-group">
-                                <label for="filter-source"><i class="fas fa-satellite-dish"></i></label>
-                                <select name="source" id="filter-source" onchange="this.form.submit()">
-                                    <option value="">Source</option>
+                            <div class="form-group">
+                                <label for="filter-source">Source</label>
+                                <select name="source" id="filter-source">
+                                    <option value="">Toutes</option>
                                     <option value="email" <?= ($_GET['source'] ?? '') == 'email' ? 'selected' : '' ?>>Email</option>
                                     <option value="manual" <?= ($_GET['source'] ?? '') == 'manual' ? 'selected' : '' ?>>Manuel</option>
                                 </select>
                             </div>
-                            <?php if (!empty($_GET['mime_type']) || !empty($_GET['source'])): 
-                                $resetParams = [];
-                                if (isset($_GET['folder_id'])) $resetParams['folder_id'] = $_GET['folder_id'];
-                                $resetUrl = "/" . (empty($resetParams) ? '' : '?' . http_build_query($resetParams));
-                            ?>
-                                <a href="<?= $resetUrl ?>" class="button-icon" title="Réinitialiser les filtres"><i class="fas fa-times-circle"></i></a>
-                            <?php endif; ?>
-                        </form>
-                    </div>
+                            <div class="form-group">
+                                <label for="filter-status">Statut</label>
+                                <select name="status" id="filter-status">
+                                    <option value="">Tous</option>
+                                    <?php foreach($status_map as $key => $status): ?>
+                                        <option value="<?= $key ?>" <?= ($_GET['status'] ?? '') == $key ? 'selected' : '' ?>><?= $status['label'] ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="button">Appliquer les filtres</button>
+                        </div>
+                    </form>
                  </div>
+
                  <div class="card-body">
                     <div id="document-list-view">
                         <table class="table documents-table">
@@ -196,7 +216,6 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                             </thead>
                             <tbody>
                             <?php if (isset($items) && !empty($items)): ?>
-                                <?php $status_map = ['received' => ['color' => '#007bff', 'label' => 'Reçu'], 'to_print' => ['color' => '#ffc107', 'label' => 'À imprimer'], 'printed' => ['color' => '#28a745', 'label' => 'Imprimé'], 'print_error' => ['color' => '#dc3545', 'label' => 'Erreur']]; ?>
                                 <?php foreach ($items as $item): ?>
                                     <?php if ($item['type'] === 'folder'): ?>
                                         <tr data-folder-id="<?= $item['id'] ?>" class="folder-row dropzone" draggable="true">
@@ -229,7 +248,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="7" class="empty-state"><?= (isset($_GET['q']) || !empty(array_filter($_GET))) ? 'Aucun résultat trouvé.' : 'Ce dossier est vide.'; ?></td></tr>
+                                <tr><td colspan="7" class="empty-state"><?= (isset($_GET['q']) || !empty(array_filter(array_intersect_key($_GET, array_flip(['mime_type', 'source', 'status']))))) ? 'Aucun résultat trouvé.' : 'Ce dossier est vide.'; ?></td></tr>
                             <?php endif; ?>
                             </tbody>
                         </table>
@@ -250,7 +269,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                                 <?php endif; ?>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <p class="empty-state"><?= (isset($_GET['q']) || !empty(array_filter($_GET))) ? 'Aucun résultat trouvé.' : 'Ce dossier est vide.'; ?></p>
+                            <p class="empty-state"><?= (isset($_GET['q']) || !empty(array_filter(array_intersect_key($_GET, array_flip(['mime_type', 'source', 'status']))))) ? 'Aucun résultat trouvé.' : 'Ce dossier est vide.'; ?></p>
                         <?php endif; ?>
                     </div>
                  </div>
@@ -316,6 +335,7 @@ $currentFolderId = $_GET['folder_id'] ?? null;
     <script src="/js/home/printQueue.js"></script>
     <script src="/js/home/websocket.js"></script>
     <script src="/js/home/upload.js"></script>
+    <script src="/js/home/filters.js"></script> 
     <script src="/js/home/main.js"></script> 
 </body>
 </html>

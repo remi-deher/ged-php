@@ -13,7 +13,8 @@ GED.home.main = {
         GED.home.dnd.init();
         GED.home.printQueue.init();
         GED.home.websocket.init();
-        GED.home.upload.init(); // Initialisation du nouveau module de téléversement
+        GED.home.upload.init();
+        GED.home.filters.init(); // AJOUT DE CETTE LIGNE
 
         // Gère les événements globaux de la page comme le simple/double clic
         this.initGlobalEvents();

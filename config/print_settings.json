@@ -3,5 +3,10 @@
         "id": "printer_1759504175",
         "name": "BROTHER_ROBOT",
         "uri": "http:\/\/192.168.1.65:631\/printers\/Brother_DCP_L5510DW_series@BROTHER_ROBOT.local"
+    },
+    {
+        "id": "printer_1759747499",
+        "name": "Caisse",
+        "uri": "ipp:\/\/BROTHER_VILLE_CAISSE.local:631\/ipp\/print"
     }
 ]

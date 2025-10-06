@@ -80,6 +80,11 @@ class DocumentRepository
             }
         }
 
+        if (!empty($filters['status'])) {
+            $sql .= ' AND d.status = :status';
+            $params[':status'] = $filters['status'];
+        }
+
         // Appliquer le tri
         $sortColumn = ($sort === 'name') ? 'd.original_filename' : 'd.' . $sort;
         $sql .= " ORDER BY $sortColumn $order";

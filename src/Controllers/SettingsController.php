@@ -97,10 +97,12 @@ class SettingsController
             escapeshellarg($printerData['uri'])
         );
         
-        @exec($command . ' 2>&1', $output, $return_var);
+        exec($command . ' 2>&1', $output, $return_var);
 
         if ($return_var !== 0) {
             error_log("CUPS lpadmin command failed for printer {$printerData['name']}: " . implode("\n", $output));
+            header('Location: /settings?error=' . urlencode("Impossible d'ajouter l'imprimante à CUPS. Vérifiez les permissions du serveur."));
+            exit();
         }
 
         $found = false;

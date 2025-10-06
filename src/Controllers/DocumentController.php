@@ -8,7 +8,7 @@ use App\Services\FolderService;
 use App\Services\FileUploaderService;
 use App\Services\PrintService;
 use App\Services\TrashService;
-use App\Services\PreviewService; // Ajout de l'import
+use App\Services\PreviewService;
 use App\Repositories\DocumentRepository;
 use App\Repositories\FolderRepository;
 use WebSocket\Client as WebSocketClient;
@@ -20,7 +20,7 @@ class DocumentController
     private FolderService $folderService;
     private PrintService $printService;
     private TrashService $trashService;
-    private PreviewService $previewService; // Ajout de la propriété
+    private PreviewService $previewService;
     private DocumentRepository $documentRepository;
     private FolderRepository $folderRepository;
 
@@ -30,7 +30,7 @@ class DocumentController
         $this->folderService = new FolderService();
         $this->printService = new PrintService();
         $this->trashService = new TrashService();
-        $this->previewService = new PreviewService(); // Instanciation du service
+        $this->previewService = new PreviewService();
         $this->documentRepository = new DocumentRepository();
         $this->folderRepository = new FolderRepository();
     }
@@ -48,6 +48,7 @@ class DocumentController
         $filters = [
             'mime_type' => $_GET['mime_type'] ?? null,
             'source' => $_GET['source'] ?? null,
+            'status' => $_GET['status'] ?? null, // Filtre par statut ajouté ici
         ];
 
         $folderTree = $this->folderService->getFolderTree();
