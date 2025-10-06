@@ -8,7 +8,7 @@ use App\Services\FolderService;
 use App\Services\FileUploaderService;
 use App\Services\PrintService;
 use App\Services\TrashService;
-use App\Services\PreviewService; // Ajout de l'import
+use App\Services\PreviewService;
 use App\Repositories\DocumentRepository;
 use App\Repositories\FolderRepository;
 use WebSocket\Client as WebSocketClient;
@@ -20,7 +20,7 @@ class DocumentController
     private FolderService $folderService;
     private PrintService $printService;
     private TrashService $trashService;
-    private PreviewService $previewService; // Ajout de la propriété
+    private PreviewService $previewService;
     private DocumentRepository $documentRepository;
     private FolderRepository $folderRepository;
 
@@ -30,7 +30,7 @@ class DocumentController
         $this->folderService = new FolderService();
         $this->printService = new PrintService();
         $this->trashService = new TrashService();
-        $this->previewService = new PreviewService(); // Instanciation du service
+        $this->previewService = new PreviewService();
         $this->documentRepository = new DocumentRepository();
         $this->folderRepository = new FolderRepository();
     }
@@ -70,15 +70,12 @@ class DocumentController
         echo json_encode($details);
     }
 
-    /**
-     * Gère la prévisualisation des documents, avec conversion à la volée.
-     */
     public function previewDocument(int $docId): void
     {
         try {
             $preview = $this->previewService->getPreview($docId);
 
-            // Supprime l'en-tête X-Frame-Options ajoutée par le reverse proxy
+            // Permet l'affichage dans un iframe
             header_remove('X-Frame-Options');
 
             header('Content-Type: ' . $preview['mimeType']);
@@ -87,13 +84,12 @@ class DocumentController
             readfile($preview['filePath']);
             exit;
         } catch (\RuntimeException $e) {
-            // Afficher un message d'erreur clair en cas de problème
             http_response_code($e->getCode() ?: 500);
             echo "<h1>Erreur de prévisualisation</h1>";
             echo "<p>Impossible de générer un aperçu pour ce document.</p>";
             echo "<p><strong>Détail :</strong> " . htmlspecialchars($e->getMessage()) . "</p>";
             if ($e->getCode() === 500) {
-                 echo "<p><strong>Note :</strong> Pour les documents Word, Excel, etc., assurez-vous que LibreOffice est bien installé sur le serveur et accessible par l'utilisateur du serveur web (`www-data`).</p>";
+                 echo "<p><strong>Note :</strong> Pour les documents non-natifs, assurez-vous que LibreOffice est bien installé sur le serveur.</p>";
             }
             exit;
         }
@@ -103,13 +99,36 @@ class DocumentController
 
     public function createFolder(): void
     {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+
         if (isset($_POST['folder_name']) && !empty(trim($_POST['folder_name']))) {
             $folderName = trim($_POST['folder_name']);
-            $parentId = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int)$_POST['parent_id'] : null;
-            $this->folderRepository->create($folderName, $parentId);
+            $parentId = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' && $_POST['parent_id'] !== 'root' ? (int)$_POST['parent_id'] : null;
+            
+            try {
+                $newFolderId = $this->folderRepository->create($folderName, $parentId);
+                
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    $newFolder = $this->folderRepository->find($newFolderId);
+                    echo json_encode(['success' => true, 'folder' => $newFolder]);
+                    exit();
+                }
+
+            } catch (\Exception $e) {
+                if ($isAjax) {
+                    http_response_code(500);
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                    exit();
+                }
+            }
         }
-        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
-        exit();
+        
+        if (!$isAjax) {
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
+            exit();
+        }
     }
 
     public function uploadDocument(): void
@@ -139,7 +158,7 @@ class DocumentController
                 $uploadedFile = $uploader->handleUpload($file);
                 $uploadedFile['folder_id'] = $currentFolderId;
                 $docId = $this->documentRepository->create($uploadedFile);
-                $newDocument = $this->documentService->getDocumentDetails($docId); // Récupérer les infos complètes
+                $newDocument = $this->documentService->getDocumentDetails($docId);
                 $this->notifyClients('new_document', ['filename' => $uploadedFile['original_filename']]);
                 $successes[] = $newDocument['main_document'];
             } catch (\Exception $e) {
@@ -162,9 +181,6 @@ class DocumentController
         exit();
     }
 
-    /**
-     * Reformate le tableau $_FILES pour le rendre itérable.
-     */
     private function reformatFilesArray(array $files): array
     {
         if (!is_array($files['name'])) {
@@ -224,7 +240,6 @@ class DocumentController
             http_response_code(404); 
             die('File not found on server.'); 
         }
-        // Force le téléchargement au lieu de l'affichage
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . basename($doc['original_filename']) . '"');
         header('Content-Length: ' . filesize($filePath));

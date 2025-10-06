@@ -5,21 +5,28 @@ GED.home = GED.home || {};
 GED.home.contextMenu = {
     init() {
         const contextMenu = document.getElementById('context-menu');
-        if (!contextMenu) return;
+        const mainContent = document.getElementById('main-content');
+        if (!contextMenu || !mainContent) return;
 
         let currentItemId = null;
 
-        document.addEventListener('contextmenu', e => {
+        mainContent.addEventListener('contextmenu', e => {
+            e.preventDefault();
             const targetRow = e.target.closest('.document-row, .folder-row');
+            
             if (targetRow) {
-                e.preventDefault();
+                // Clic sur un élément : affiche les actions spécifiques
                 currentItemId = targetRow.dataset.docId || targetRow.dataset.folderId;
-                contextMenu.style.top = `${e.clientY}px`;
-                contextMenu.style.left = `${e.clientX}px`;
-                contextMenu.style.display = 'block';
+                contextMenu.querySelectorAll('.item-specific').forEach(item => item.style.display = 'block');
             } else {
-                contextMenu.style.display = 'none';
+                // Clic dans le vide : cache les actions spécifiques
+                currentItemId = null;
+                contextMenu.querySelectorAll('.item-specific').forEach(item => item.style.display = 'none');
             }
+            
+            contextMenu.style.top = `${e.clientY}px`;
+            contextMenu.style.left = `${e.clientX}px`;
+            contextMenu.style.display = 'block';
         });
 
         document.addEventListener('click', () => contextMenu.style.display = 'none');
@@ -27,6 +34,11 @@ GED.home.contextMenu = {
         contextMenu.addEventListener('click', e => {
             const action = e.target.dataset.action;
             if (!action) return;
+
+            if (action === 'create-folder') {
+                GED.home.main.createFolder();
+                return;
+            }
 
             const selectedIds = Array.from(document.querySelectorAll('.doc-checkbox:checked')).map(cb => cb.value);
             const targetIds = selectedIds.length > 0 ? selectedIds : (currentItemId ? [currentItemId] : []);

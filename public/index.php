@@ -64,7 +64,6 @@ switch ($requestUri) {
     case '/document/download':
         if (isset($_GET['id'])) $documentController->downloadDocument((int)$_GET['id']);
         break;
-    // AJOUT DE LA NOUVELLE ROUTE
     case '/document/preview':
         if (isset($_GET['id'])) $documentController->previewDocument((int)$_GET['id']);
         break;
@@ -87,7 +86,7 @@ switch ($requestUri) {
         break;
         
     // Actions sur la file d'impression (gérées par DocumentController)
-    case '/print-queue/status': // CORRIGÉ
+    case '/print-queue/status':
         $documentController->getPrintQueueStatus();
         break;
     case '/document/print':
@@ -96,10 +95,10 @@ switch ($requestUri) {
     case '/document/bulk-print':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->printBulkDocuments();
         break;
-    case '/document/cancel-print': // CORRIGÉ
+    case '/document/cancel-print':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->cancelPrintJob();
         break;
-    case '/document/clear-print-error': // CORRIGÉ
+    case '/document/clear-print-error':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->clearPrintJobError();
         break;
         

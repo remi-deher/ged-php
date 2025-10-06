@@ -119,14 +119,17 @@ $currentFolderId = $_GET['folder_id'] ?? null;
                         <?php elseif (isset($_GET['q'])): ?>
                             / <span>Recherche pour "<?= htmlspecialchars($_GET['q']) ?>"</span>
                         <?php endif; ?>
+                        
+                        <a href="#" id="breadcrumb-add-folder" class="button-icon" title="Nouveau dossier ici">+</a>
                     </h1>
                 </div>
                 <div class="content-actions">
-                     <form id="create-folder-form" action="/folder/create" method="POST" class="create-folder-form">
+                     <form id="create-folder-form" action="/folder/create" method="POST" class="create-folder-form" style="display: none;">
                         <input type="hidden" name="parent_id" value="<?= htmlspecialchars($currentFolder ? $currentFolder['id'] : '') ?>">
                         <input type="text" name="folder_name" placeholder="Nouveau dossier" required>
                         <button type="submit" class="button"><i class="fas fa-plus"></i></button>
                     </form>
+                    
                     <div class="upload-form">
                         <input type="hidden" name="folder_id" value="<?= htmlspecialchars($currentFolder ? $currentFolder['id'] : '') ?>">
                         <label for="document-upload-input" class="button"><i class="fas fa-upload"></i> Envoyer</label>
@@ -269,40 +272,20 @@ $currentFolderId = $_GET['folder_id'] ?? null;
         </aside>
     </div>
     
-<div id="document-modal" class="modal-overlay" style="display: none;">
-    <div class="modal-content" style="max-width: 1200px; height: 90vh;">
-        <div class="modal-header">
-            <h2 id="modal-title"></h2>
-            <button class="modal-close">&times;</button>
+    <div id="document-modal" class="modal-overlay" style="display: none;">
         </div>
-        <div class="modal-body-split">
-            <div id="modal-attachments" class="modal-attachments">
-                <div class="attachments-header"><h3>Pièces jointes</h3></div>
-                <ul id="modal-attachments-list" class="modal-attachments-list"></ul>
-            </div>
-            <button id="modal-attachments-toggle-btn" title="Masquer les pièces jointes">‹</button>
-            
-            <div id="modal-preview" class="modal-preview">
-                <div class="modal-preview-header">
-                    <span id="preview-doc-title"></span>
-                    <a id="preview-new-tab" href="#" target="_blank" class="button button-secondary">
-                        <i class="fas fa-external-link-alt"></i> Ouvrir dans un nouvel onglet
-                    </a>
-                </div>
-		 <iframe id="modal-preview-iframe" class="modal-preview-iframe"></iframe>
-            </div>
-        </div>
-    </div>
-</div>
 
     <ul id="context-menu" class="context-menu">
-        <li data-action="preview_sidebar">👁️ Aperçu rapide</li>
-        <li data-action="preview_modal">📖 Ouvrir en grand</li>
-        <li data-action="print">🖨️ Imprimer</li>
-        <li data-action="download">📥 Télécharger</li>
-        <li data-action="move">➔ Déplacer</li>
-        <li data-action="delete" class="separator">🗑️ Mettre à la corbeille</li>
+        <li data-action="create-folder">➕ Nouveau dossier</li>
+        <li class="separator item-specific"></li>
+        <li data-action="preview_sidebar" class="item-specific">👁️ Aperçu rapide</li>
+        <li data-action="preview_modal" class="item-specific">📖 Ouvrir en grand</li>
+        <li data-action="print" class="item-specific">🖨️ Imprimer</li>
+        <li data-action="download" class="item-specific">📥 Télécharger</li>
+        <li data-action="move" class="item-specific">➔ Déplacer</li>
+        <li data-action="delete" class="separator item-specific">🗑️ Mettre à la corbeille</li>
     </ul>
+    
     <div id="toast-container"></div>
     
     <script src="/js/app.js"></script>
