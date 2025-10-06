@@ -5,10 +5,13 @@ GED.home = GED.home || {};
 GED.home.upload = {
     init() {
         this.dropOverlay = document.getElementById('drop-overlay');
-        if (!this.dropOverlay) return;
+        const fileInput = document.getElementById('document-upload-input'); // Nouvel ID pour l'input
 
-        let enterCounter = 0; // Compteur pour gérer les événements dragenter/dragleave
+        if (!this.dropOverlay || !fileInput) return;
 
+        let enterCounter = 0;
+
+        // --- Logique du Drag and Drop (inchangée) ---
         window.addEventListener('dragenter', (e) => {
             e.preventDefault();
             enterCounter++;
@@ -27,7 +30,7 @@ GED.home.upload = {
         });
 
         window.addEventListener('dragover', (e) => {
-            e.preventDefault(); // Indispensable pour que l'événement 'drop' se déclenche
+            e.preventDefault();
         });
 
         window.addEventListener('drop', (e) => {
@@ -40,8 +43,18 @@ GED.home.upload = {
                 this.handleFiles(files);
             }
         });
+
+        // --- NOUVELLE LOGIQUE POUR LE BOUTON "ENVOYER" ---
+        // Ajout d'un écouteur sur le changement de l'input file
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) {
+                this.handleFiles(files);
+            }
+        });
     },
 
+    // --- Fonction de téléversement (commune) ---
     handleFiles(files) {
         GED.utils.showToast(`Téléversement de ${files.length} fichier(s)...`, '⏳');
 
@@ -56,7 +69,6 @@ GED.home.upload = {
 
         fetch('/upload', {
             method: 'POST',
-            // AJOUT DE L'EN-TÊTE POUR LA DÉTECTION AJAX
             headers: {
                 'X-Requested-With': 'XMLHttpRequest'
             },
@@ -69,9 +81,13 @@ GED.home.upload = {
             return response.json();
         })
         .then(result => {
-            if(result.success) {
+            if (result.success) {
                 GED.utils.showToast(result.message, '✅');
-                setTimeout(() => window.location.reload(), 1500);
+                if (result.documents) {
+                    result.documents.forEach(doc => {
+                        GED.home.main.addDocumentToView(doc);
+                    });
+                }
             } else {
                  throw new Error(result.message || 'Une erreur est survenue.');
             }

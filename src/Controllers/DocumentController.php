@@ -8,7 +8,7 @@ use App\Services\FolderService;
 use App\Services\FileUploaderService;
 use App\Services\PrintService;
 use App\Services\TrashService;
-use App\Services\PreviewService;
+use App\Services\PreviewService; // Ajout de l'import
 use App\Repositories\DocumentRepository;
 use App\Repositories\FolderRepository;
 use WebSocket\Client as WebSocketClient;
@@ -20,7 +20,7 @@ class DocumentController
     private FolderService $folderService;
     private PrintService $printService;
     private TrashService $trashService;
-    private PreviewService $previewService;
+    private PreviewService $previewService; // Ajout de la propriété
     private DocumentRepository $documentRepository;
     private FolderRepository $folderRepository;
 
@@ -30,7 +30,7 @@ class DocumentController
         $this->folderService = new FolderService();
         $this->printService = new PrintService();
         $this->trashService = new TrashService();
-        $this->previewService = new PreviewService();
+        $this->previewService = new PreviewService(); // Instanciation du service
         $this->documentRepository = new DocumentRepository();
         $this->folderRepository = new FolderRepository();
     }
@@ -48,7 +48,6 @@ class DocumentController
         $filters = [
             'mime_type' => $_GET['mime_type'] ?? null,
             'source' => $_GET['source'] ?? null,
-            'status' => $_GET['status'] ?? null, // Filtre par statut ajouté ici
         ];
 
         $folderTree = $this->folderService->getFolderTree();
@@ -133,15 +132,16 @@ class DocumentController
         $currentFolderId = isset($_POST['folder_id']) && !empty($_POST['folder_id']) ? (int)$_POST['folder_id'] : null;
         $uploader = new FileUploaderService();
         $errors = [];
-        $successCount = 0;
+        $successes = [];
 
         foreach ($files as $file) {
             try {
                 $uploadedFile = $uploader->handleUpload($file);
                 $uploadedFile['folder_id'] = $currentFolderId;
-                $this->documentRepository->create($uploadedFile);
+                $docId = $this->documentRepository->create($uploadedFile);
+                $newDocument = $this->documentService->getDocumentDetails($docId); // Récupérer les infos complètes
                 $this->notifyClients('new_document', ['filename' => $uploadedFile['original_filename']]);
-                $successCount++;
+                $successes[] = $newDocument['main_document'];
             } catch (\Exception $e) {
                 $errors[] = $file['name'] . ': ' . $e->getMessage();
                 error_log('Upload Error: ' . $e->getMessage());
@@ -150,11 +150,11 @@ class DocumentController
 
         if ($isAjax) {
             header('Content-Type: application/json');
-            if ($successCount > 0 && empty($errors)) {
-                echo json_encode(['success' => true, 'message' => "$successCount fichier(s) téléversé(s) avec succès !"]);
+            if (!empty($successes) && empty($errors)) {
+                echo json_encode(['success' => true, 'message' => count($successes) . " fichier(s) téléversé(s) avec succès !", 'documents' => $successes]);
             } else {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'message' => "Erreur lors du téléversement : " . implode(', ', $errors)]);
+                echo json_encode(['success' => false, 'message' => "Erreur lors du téléversement : " . implode(', ', $errors), 'documents' => $successes]);
             }
         } else {
             header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));

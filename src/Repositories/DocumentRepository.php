@@ -80,11 +80,6 @@ class DocumentRepository
             }
         }
 
-        if (!empty($filters['status'])) {
-            $sql .= ' AND d.status = :status';
-            $params[':status'] = $filters['status'];
-        }
-
         // Appliquer le tri
         $sortColumn = ($sort === 'name') ? 'd.original_filename' : 'd.' . $sort;
         $sql .= " ORDER BY $sortColumn $order";
@@ -101,18 +96,21 @@ class DocumentRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function create(array $data): void
+    public function create(array $data): int
     {
-        $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, folder_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'received', ?, NOW(), NOW())";
+        $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, folder_id, created_at, updated_at, source_account_id, parent_document_id) VALUES (?, ?, ?, ?, ?, 'received', ?, NOW(), NOW(), ?, ?)";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
-            $data['original_filename'], 
-            $data['stored_filename'], 
-            'storage/', 
-            $data['mime_type'], 
-            $data['size'], 
-            $data['folder_id'] ?? null
+            $data['original_filename'],
+            $data['stored_filename'],
+            'storage/',
+            $data['mime_type'],
+            $data['size'],
+            $data['folder_id'] ?? null,
+            $data['source_account_id'] ?? null,
+            $data['parent_document_id'] ?? null
         ]);
+        return (int)$this->pdo->lastInsertId();
     }
 
     public function move(array $docIds, ?int $folderId): void
