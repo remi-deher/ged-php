@@ -23,7 +23,6 @@ if (!file_exists($settingsFile)) {
 }
 
 $tenants = json_decode(file_get_contents($settingsFile), true);
-
 if (!is_array($tenants) || empty($tenants)) {
     die("Fichier de configuration 'mail_settings.json' est vide ou mal formaté.\n");
 }
@@ -42,7 +41,6 @@ foreach ($tenants as $tenant) {
     echo "\n==========================================================\n";
     echo "Traitement du Tenant : " . ($tenant['tenant_name'] ?? 'Tenant sans nom') . "\n";
     echo "==========================================================\n";
-
     if (empty($tenant['graph']['tenant_id']) || empty($tenant['graph']['client_id']) || empty($tenant['graph']['client_secret'])) {
         echo "ATTENTION: La configuration Graph pour ce tenant est incomplète. Passage au tenant suivant.\n";
         continue;
@@ -61,11 +59,11 @@ foreach ($tenants as $tenant) {
         );
         $graph = new GraphServiceClient($tokenRequestContext);
         echo "DEBUG: Client Graph initialisé avec succès pour le tenant '" . $tenant['tenant_name'] . "'.\n";
-
         // --- BOUCLE SUR CHAQUE COMPTE (BOÎTE MAIL) DU TENANT ---
         foreach ($tenant['accounts'] as $account) {
             echo "\n----------------------------------------------------------\n";
-            echo "  Traitement du compte : " . ($account['account_name'] ?? 'Compte sans nom') . " (" . $account['user_email'] . ")\n";
+            echo "  Traitement du compte : " . ($account['account_name'] ?? 'Compte sans nom') .
+                " (" . $account['user_email'] . ")\n";
             echo "----------------------------------------------------------\n";
 
             if (empty($account['user_email'])) {
@@ -78,7 +76,6 @@ foreach ($tenants as $tenant) {
             }
             
             $foldersToSync = $account['folders'];
-
             // --- BOUCLE SUR LES DOSSIERS SÉLECTIONNÉS ---
             foreach ($foldersToSync as $folderMapping) {
                 $folderId = $folderMapping['id'];
@@ -94,13 +91,14 @@ foreach ($tenants as $tenant) {
                 $messages = $graph->users()->byUserId($account['user_email'])->mailFolders()->byMailFolderId($folderId)->messages()->get($requestConfiguration)->wait();
                 $messageCollection = $messages->getValue();
                 echo "  -> " . count($messageCollection) . " message(s) non lu(s) trouvé(s) dans ce dossier.\n";
-                
                 if (empty($messageCollection)) {
-                    continue; // Passe au dossier suivant
+                    continue;
+                    // Passe au dossier suivant
                 }
 
                 foreach ($messageCollection as $message) {
-                    echo "\n    Traitement du message : '" . $message->getSubject() . "'\n";
+                    echo "\n    Traitement du message : '" .
+                        $message->getSubject() . "'\n";
                     $parentDocumentId = null;
 
                     // --- 1. Sauvegarder le corps de l'e-mail en HTML ---
@@ -108,34 +106,73 @@ foreach ($tenants as $tenant) {
                         try {
                             echo "      -> Sauvegarde du corps de l'e-mail en HTML...\n";
                             $emailBodyHtml = $message->getBody()->getContent();
-                            
                             if (trim(strip_tags($emailBodyHtml)) === '') {
                                 $emailBodyHtml = '<h1>Ce mail est vide.</h1>';
                             }
+                            
+                            // --- DÉBUT MODIFICATION EN-TÊTE ---
+                            // Fonction pour formater une liste de destinataires
+                            $formatRecipients = function ($recipients) {
+                                if (empty($recipients)) return '';
+                                $addresses = [];
+                                foreach ($recipients as $recipient) {
+                                    $address = htmlspecialchars($recipient->getEmailAddress()->getAddress());
+                                    $name = htmlspecialchars($recipient->getEmailAddress()->getName());
+                                    $addresses[] = $name ? "$name &lt;$address&gt;" : $address;
+                                }
+                                return implode(', ', $addresses);
+                            };
 
-                            // NOUVEAU: On enveloppe le corps de l'e-mail dans une page HTML complète et sécurisée
+                            $from = $message->getFrom() ? $formatRecipients([$message->getFrom()]) : 'N/A';
+                            $to = $formatRecipients($message->getToRecipients());
+                            $cc = $formatRecipients($message->getCcRecipients());
+                            $receivedDateTime = $message->getReceivedDateTime();
+                            $formattedDate = $receivedDateTime ? $receivedDateTime->format('d/m/Y à H:i:s') : 'N/A';
+                            $subject = htmlspecialchars($message->getSubject() ?: 'Email sans sujet');
+
+                            $emailHeaderHtml = "
+<div class='email-header' style='padding: 15px; border-bottom: 2px solid #e0e0e0; margin-bottom: 20px; background-color: #f9f9f9; font-family: sans-serif; font-size: 14px; color: #333;'>
+    <p style='margin: 0 0 8px 0;'><strong>De :</strong> {$from}</p>
+    <p style='margin: 0 0 8px 0;'><strong>Sujet :</strong> {$subject}</p>
+    <p style='margin: 0 0 8px 0;'><strong>Date :</strong> {$formattedDate}</p>
+    <p style='margin: 0 0 8px 0;'><strong>À :</strong> {$to}</p>";
+                            if (!empty($cc)) {
+                                $emailHeaderHtml .= "<p style='margin: 0;'><strong>Cc :</strong> {$cc}</p>";
+                            }
+                            $emailHeaderHtml .= "</div>";
+                            // --- FIN MODIFICATION EN-TÊTE ---
+
+
+                            // On enveloppe le corps de l'e-mail dans une page HTML complète et sécurisée
                             $fullHtml = '<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>' . htmlspecialchars($message->getSubject() ?: 'Email sans sujet') . '</title>
+    <title>' .
+                                htmlspecialchars($message->getSubject() ?: 'Email sans sujet') . '</title>
     <style>
         /* Styles de base pour améliorer la lisibilité et éviter les dépassements */
-        body { font-family: sans-serif; line-height: 1.6; padding: 20px; }
-        img, svg, video, embed, iframe, object { max-width: 100%; height: auto; }
-        table { max-width: 100%; border-collapse: collapse; }
-        td, th { padding: 5px; border: 1px solid #ddd; }
+        body { font-family: sans-serif;
+            line-height: 1.6; padding: 20px; }
+        img, svg, video, embed, iframe, object { max-width: 100%;
+            height: auto; }
+        table { max-width: 100%; border-collapse: collapse;
+        }
+        td, th { padding: 5px; border: 1px solid #ddd;
+        }
     </style>
 </head>
-<body>' . $emailBodyHtml . '</body>
+<body>' . $emailHeaderHtml . $emailBodyHtml . '</body>
 </html>';
 
                             $emailSubject = $message->getSubject() ?: 'Email sans sujet';
-                            $storedHtmlFilename = 'email_' . uniqid('', true) . '.html';
+                            $storedHtmlFilename = 'email_' .
+                                uniqid('', true) . '.html';
                             $fullHtmlPath = dirname(__DIR__) . '/storage/' . $storedHtmlFilename;
                             
-                            file_put_contents($fullHtmlPath, $fullHtml); // On sauvegarde le HTML complet
+                            file_put_contents($fullHtmlPath, $fullHtml);
+                            // On sauvegarde le HTML complet
 
                             echo "      -> Fichier HTML sauvegardé : $storedHtmlFilename\n";
                             echo "      -> Insertion du HTML dans la BDD...\n";
@@ -148,27 +185,30 @@ foreach ($tenants as $tenant) {
                             echo "      -> SUCCÈS: E-mail enregistré en BDD avec l'ID: $parentDocumentId.\n";
                             notifyWebSocket($emailSubject . '.html');
                         } catch (\PDOException $e) {
-                            echo "      -> ERREUR BDD (Email): " . $e->getMessage() . "\n";
+                            echo "      -> ERREUR BDD (Email): " .
+                                $e->getMessage() . "\n";
                             error_log("CRON ERREUR BDD (Email): " . $e->getMessage());
                         } catch (\Exception $e) {
-                            echo "      -> ERREUR (Email): " . $e->getMessage() . "\n";
+                            echo "      -> ERREUR (Email): " .
+                                $e->getMessage() . "\n";
                             error_log("CRON ERREUR (Email): " . $e->getMessage());
                         }
                     }
 
                     // --- 2. Traiter les pièces jointes ---
                     if ($message->getHasAttachments()) {
+                      
                         $attachments = $message->getAttachments();
                         foreach ($attachments as $attachment) {
                             if ($attachment instanceof Models\FileAttachment) {
-                                echo "      -> Pièce jointe trouvée : " . $attachment->getName() . "\n";
+                                echo "      -> Pièce jointe trouvée : " .
+                                    $attachment->getName() . "\n";
                                 try {
                                     $originalFilename = $attachment->getName();
                                     $storedFilename = 'doc_' . uniqid('', true) . '.' . pathinfo($originalFilename, PATHINFO_EXTENSION);
                                     $fullStoragePath = dirname(__DIR__) . '/storage/' . $storedFilename;
                                     file_put_contents($fullStoragePath, base64_decode($attachment->getContentBytes()));
                                     echo "      -> Fichier PJ sauvegardé : $storedFilename\n";
-
                                     echo "      -> Insertion de la PJ dans la BDD...\n";
                                     $sql = "INSERT INTO documents (original_filename, stored_filename, storage_path, mime_type, size, status, parent_document_id, source_account_id, created_at, updated_at) 
                                             VALUES (?, ?, ?, ?, ?, 'received', ?, ?, NOW(), NOW())";
@@ -177,18 +217,20 @@ foreach ($tenants as $tenant) {
                                     $attachmentId = $pdo->lastInsertId();
                                     echo "      -> SUCCÈS: PJ enregistrée en BDD avec l'ID: $attachmentId.\n";
                                     notifyWebSocket($originalFilename);
-
                                 } catch (\PDOException $e) {
-                                    echo "      -> ERREUR BDD (PJ): " . $e->getMessage() . "\n";
+                                    echo "      -> ERREUR BDD (PJ): " .
+                                        $e->getMessage() . "\n";
                                     error_log("CRON ERREUR BDD (PJ): " . $e->getMessage());
                                 } catch (\Exception $e) {
-                                    echo "      -> ERREUR (PJ): " . $e->getMessage() . "\n";
+                                    echo "      -> ERREUR (PJ): " .
+                                        $e->getMessage() . "\n";
                                     error_log("CRON ERREUR (PJ): " . $e->getMessage());
                                 }
                             }
                         }
                     }
 
+                   
                     // --- 3. Marquer le message comme lu ---
                     echo "    -> Marquage du message comme lu...\n";
                     $updatePayload = new Models\Message();
@@ -199,24 +241,27 @@ foreach ($tenants as $tenant) {
             }
         }
     } catch (ApiException $e) {
-        echo "\n--- ERREUR API GRAPH POUR LE TENANT " . ($tenant['tenant_name'] ?? '') . " ---\n";
+        echo "\n--- ERREUR API GRAPH POUR LE TENANT " .
+            ($tenant['tenant_name'] ?? '') . " ---\n";
         echo "Code HTTP: " . $e->getCode() . "\n";
-        echo "Message d'erreur principal: " . $e->getMessage() . "\n\n";
+        echo "Message d'erreur principal: " .
+            $e->getMessage() . "\n\n";
         if (method_exists($e, 'getError')) {
             $error = $e->getError();
             if (method_exists($error, 'getMessage')) {
-                 echo "Détail de l'erreur Azure: " . $error->getMessage() . "\n";
+                 echo "Détail de l'erreur Azure: " .
+                    $error->getMessage() . "\n";
             }
         }
     } catch (\Exception $e) {
-        echo "\n--- ERREUR GÉNÉRALE INATTENDUE POUR LE TENANT " . ($tenant['tenant_name'] ?? '') . " ---\n";
+        echo "\n--- ERREUR GÉNÉRALE INATTENDUE POUR LE TENANT " .
+            ($tenant['tenant_name'] ?? '') . " ---\n";
         echo "Message: " . $e->getMessage() . "\n";
     }
 }
 
 echo "\nScript terminé.\n";
-
-function notifyWebSocket(string $filename): void 
+function notifyWebSocket(string $filename): void
 {
     try {
         $client = new WebSocketClient("ws://127.0.0.1:8082");
