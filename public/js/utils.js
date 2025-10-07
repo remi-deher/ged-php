@@ -1,44 +1,62 @@
 // public/js/utils.js
 
-GED.utils = {
-    showToast(message, icon = 'ℹ️') {
-        const container = document.getElementById("toast-container");
-        if (!container) return;
-        const toast = document.createElement("div");
-        toast.className = "toast";
-        toast.innerHTML = `<span style="margin-right: 8px;">${icon}</span> ${message}`;
-        container.appendChild(toast);
-        setTimeout(() => toast.classList.add("show"), 100);
-        setTimeout(() => {
-            toast.classList.remove("show");
-            toast.addEventListener("transitionend", () => toast.remove());
-        }, 5000);
-    },
-
-    createAndSubmitForm(action, method, data) {
-        const form = document.createElement('form');
-        form.action = action;
-        form.method = method;
-
-        for (const key in data) {
-            if (Array.isArray(data[key])) {
-                data[key].forEach(value => {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = `${key}[]`;
-                    input.value = value;
-                    form.appendChild(input);
-                });
-            } else {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = data[key];
-                form.appendChild(input);
-            }
-        }
-
-        document.body.appendChild(form);
-        form.submit();
+/**
+ * Crée le conteneur pour les notifications (toasts) s'il n'existe pas.
+ * @returns {HTMLElement} Le conteneur de toasts.
+ */
+function createToastContainer() {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
     }
-};
+    return container;
+}
+
+/**
+ * Affiche une notification (toast) à l'écran.
+ * @param {string} message Le message à afficher.
+ * @param {string} type Le type de toast ('success', 'error', 'info').
+ * @param {number} duration La durée d'affichage en millisecondes.
+ */
+export function showToast(message, type = 'success', duration = 4000) {
+    const container = createToastContainer();
+    const toast = document.createElement('div');
+    // Ajoute une classe en fonction du type pour la couleur
+    toast.className = `toast toast-${type}`;
+
+    let iconClass;
+    switch(type) {
+        case 'error':
+            iconClass = 'fas fa-times-circle';
+            break;
+        case 'info':
+            iconClass = 'fas fa-info-circle';
+            break;
+        case 'success':
+        default:
+            iconClass = 'fas fa-check-circle';
+            break;
+    }
+
+    toast.innerHTML = `<i class="toast-icon ${iconClass}"></i> <span class="toast-message">${message}</span>`;
+    
+    container.appendChild(toast);
+
+    // Animation d'apparition
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 100);
+
+    // Animation de disparition
+    setTimeout(() => {
+        toast.classList.remove('show');
+        // Supprime l'élément du DOM après la fin de l'animation
+        toast.addEventListener('transitionend', () => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        });
+    }, duration);
+}

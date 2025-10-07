@@ -1,144 +1,90 @@
 // public/js/home/filters.js
 
-GED.home = GED.home || {};
+let refreshCallback;
 
-GED.home.filters = {
-    init() {
-        this.initAddDropdown();
-        this.initFilterPanel();
-        this.renderFilterPills();
-    },
+export function init(refreshDocumentsCallback) {
+    refreshCallback = refreshDocumentsCallback;
+    const toggleBtn = document.getElementById('toggle-filters-btn');
+    const filterPanel = document.getElementById('advanced-filters');
+    const filterForm = document.getElementById('filter-form');
 
-    initAddDropdown() {
-        const addBtn = document.getElementById('add-btn');
-        const dropdown = document.getElementById('add-dropdown');
-        const newFolderBtn = document.getElementById('new-folder-btn');
-        const newFolderForm = document.getElementById('new-folder-form');
-        const uploadFileBtn = document.getElementById('upload-file-btn');
-        const documentInput = document.getElementById('document-input');
-
-        addBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            addBtn.parentElement.classList.toggle('show');
+    if (toggleBtn && filterPanel) {
+        toggleBtn.addEventListener('click', () => {
+            filterPanel.style.display = filterPanel.style.display === 'none' ? 'block' : 'none';
         });
-
-        newFolderBtn?.addEventListener('click', (e) => {
-            e.preventDefault();
-            const input = newFolderForm.querySelector('input[name="folder_name"]');
-            const newName = prompt("Entrez le nom du nouveau dossier :");
-            if (newName && newName.trim() !== "") {
-                input.value = newName.trim();
-                newFolderForm.submit();
-            }
-        });
-
-        uploadFileBtn?.addEventListener('click', (e) => {
-            e.preventDefault();
-            documentInput.click();
-        });
-        
-        documentInput?.addEventListener('change', () => {
-             if(documentInput.files.length > 0) {
-                GED.utils.showToast(`Téléversement de ${documentInput.files.length} fichier(s)...`, '⏳');
-                document.getElementById('upload-form').submit();
-             }
-        });
-    },
-
-    initFilterPanel() {
-        const filterBtn = document.getElementById('advanced-filter-btn');
-        const filterPanel = document.getElementById('advanced-filter-panel');
-        
-        filterBtn?.addEventListener('click', (e) => {
-            e.stopPropagation(); // Empêche le clic de se propager au document
-            const isVisible = filterPanel.style.display === 'block';
-            filterPanel.style.display = isVisible ? 'none' : 'block';
-            filterBtn.classList.toggle('active', !isVisible);
-        });
-
-        // Ferme le panneau si on clique en dehors
-        document.addEventListener('click', (e) => {
-            if (filterPanel && filterPanel.style.display === 'block') {
-                if (!filterPanel.contains(e.target) && e.target !== filterBtn) {
-                    filterPanel.style.display = 'none';
-                    filterBtn.classList.remove('active');
-                }
-            }
-            // Ferme aussi le dropdown "Ajouter"
-            const addDropdown = document.getElementById('add-dropdown');
-            if(addDropdown && addDropdown.parentElement.classList.contains('show')) {
-                if (!addDropdown.parentElement.contains(e.target)) {
-                    addDropdown.parentElement.classList.remove('show');
-                }
-            }
-        });
-    },
-
-    renderFilterPills() {
-        const container = document.getElementById('filter-pills-container');
-        if (!container) return;
-
-        container.innerHTML = '';
-        const params = new URLSearchParams(window.location.search);
-        const activeFilters = [];
-        
-        const filterLabels = {
-            mime_type: 'Type',
-            source: 'Source',
-            status: 'Statut'
-        };
-
-        // Labels pour des valeurs spécifiques
-        const valueLabels = {
-            'application/pdf': 'PDF',
-            'image': 'Image',
-            'word': 'Document Word',
-            'received': 'Reçu',
-            'to_print': 'À imprimer',
-            'printed': 'Imprimé',
-            'print_error': 'Erreur'
-        };
-
-        params.forEach((value, key) => {
-            if (filterLabels[key] && value) {
-                const label = filterLabels[key];
-                const displayValue = valueLabels[value] || value.charAt(0).toUpperCase() + value.slice(1);
-                activeFilters.push({ key, value, label, displayValue });
-            }
-        });
-
-        if (activeFilters.length > 0) {
-            activeFilters.forEach(filter => {
-                const pill = document.createElement('div');
-                pill.className = 'pill';
-                pill.innerHTML = `
-                    <span class="pill-value">${filter.displayValue}</span>
-                    <button class="remove-pill" data-filter-key="${filter.key}" title="Retirer ce filtre">&times;</button>
-                `;
-                container.appendChild(pill);
-            });
-            
-            const clearAll = document.createElement('button');
-            clearAll.className = 'clear-all-pills';
-            clearAll.innerHTML = `&times; Effacer tout`;
-            container.appendChild(clearAll);
-
-            container.querySelectorAll('.remove-pill').forEach(btn => {
-                btn.addEventListener('click', () => this.removeFilter(btn.dataset.filterKey));
-            });
-            clearAll.addEventListener('click', () => this.removeAllFilters(activeFilters.map(f => f.key)));
-        }
-    },
-
-    removeFilter(keyToRemove) {
-        const params = new URLSearchParams(window.location.search);
-        params.delete(keyToRemove);
-        window.location.search = params.toString();
-    },
-    
-    removeAllFilters(keysToRemove) {
-        const params = new URLSearchParams(window.location.search);
-        keysToRemove.forEach(key => params.delete(key));
-        window.location.search = params.toString();
     }
-};
+
+    if (filterForm) {
+        filterForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (refreshCallback) refreshCallback();
+            filterPanel.style.display = 'none'; // Ferme le panneau après application
+            updateFilterPills();
+        });
+    }
+    document.getElementById('filter-pills-container')?.addEventListener('click', handlePillClick);
+}
+
+export function getFilterParams() {
+    const filterForm = document.getElementById('filter-form');
+    if (!filterForm) return new URLSearchParams();
+    
+    const formData = new FormData(filterForm);
+    const params = new URLSearchParams();
+    for (const [key, value] of formData.entries()) {
+        if (value) { // N'ajoute que les filtres qui ont une valeur
+            params.append(key, value);
+        }
+    }
+    return params;
+}
+
+function updateFilterPills() {
+    const container = document.getElementById('filter-pills-container');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const params = getFilterParams();
+    let hasFilters = false;
+
+    params.forEach((value, key) => {
+        hasFilters = true;
+        const pill = document.createElement('div');
+        pill.className = 'pill';
+        pill.innerHTML = `
+            <span>${getFilterLabel(key)}: <strong class="pill-value">${value}</strong></span>
+            <button class="remove-pill" data-filter-key="${key}">&times;</button>
+        `;
+        container.appendChild(pill);
+    });
+
+    if (hasFilters) {
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'clear-all-pills';
+        clearBtn.textContent = 'Tout effacer';
+        container.appendChild(clearBtn);
+    }
+}
+
+function handlePillClick(e) {
+    if (e.target.matches('.remove-pill')) {
+        const key = e.target.dataset.filterKey;
+        const input = document.getElementById(`filter-${key.replace('_', '-')}`); // ex: start_date -> filter-start-date
+        if (input) input.value = '';
+    } else if (e.target.matches('.clear-all-pills')) {
+        document.getElementById('filter-form').reset();
+    }
+    
+    if (refreshCallback) refreshCallback();
+    updateFilterPills();
+}
+
+function getFilterLabel(key) {
+    const labels = {
+        'type': 'Type',
+        'status': 'Statut',
+        'start_date': 'Après le',
+        'end_date': 'Avant le'
+    };
+    return labels[key] || key;
+}

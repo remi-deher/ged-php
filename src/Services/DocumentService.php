@@ -5,99 +5,79 @@ namespace App\Services;
 
 use App\Repositories\DocumentRepository;
 use App\Repositories\FolderRepository;
-use App\Services\ConfigurationService;
 
 class DocumentService
 {
     private DocumentRepository $documentRepository;
     private FolderRepository $folderRepository;
-    private ConfigurationService $configService;
 
     public function __construct()
     {
         $this->documentRepository = new DocumentRepository();
         $this->folderRepository = new FolderRepository();
-        $this->configService = new ConfigurationService();
     }
 
-    public function getItemsForFolder(?int $folderId, ?string $searchQuery = null, string $sort = 'created_at', string $order = 'desc', array $filters = []): array
+    /**
+     * Récupère les dossiers et les documents pour un dossier parent donné.
+     * C'est la fonction principale appelée par l'API.
+     */
+    public function getDocumentsAndFolders(?int $folderId, array $filters = []): array
     {
-        $items = [];
-        if (!$searchQuery) {
-            $folders = $this->folderRepository->findChildren($folderId);
-            foreach ($folders as $folder) {
-                $folder['type'] = 'folder';
-                $items[] = $folder;
-            }
+        // 1. Récupérer les sous-dossiers
+        $folders = $this->folderRepository->findByParent($folderId);
+        // Ajoute un type pour que le JavaScript puisse les différencier
+        foreach ($folders as &$folder) {
+            $folder['type'] = 'folder';
         }
 
-        $allDocuments = $this->documentRepository->findByFolderAndQuery($folderId, $searchQuery, $sort, $order, $filters);
-        
-        // Mapper les comptes pour un accès facile
-        $allMailSettings = $this->configService->loadMailSettings();
-        $accountsMap = [];
-        foreach ($allMailSettings as $tenant) {
-            foreach ($tenant['accounts'] as $account) {
-                $accountsMap[$account['id']] = $account;
-            }
-        }
-        
-        $documents = [];
-        $attachmentsMap = [];
-        foreach ($allDocuments as $doc) {
-            // Ajouter l'information de la source
-            if ($doc['source_account_id'] && isset($accountsMap[$doc['source_account_id']])) {
-                $doc['source_details'] = 'Email: ' . $accountsMap[$doc['source_account_id']]['user_email'];
-            } else if ($doc['source_account_id']) {
-                $doc['source_details'] = 'Source inconnue';
-            } else {
-                $doc['source_details'] = 'Manuel';
-            }
-
-            if ($doc['parent_document_id'] !== null) {
-                $attachmentsMap[$doc['parent_document_id']][] = $doc;
-            } else {
-                $doc['type'] = 'document';
-                $doc['attachments'] = [];
-                $documents[$doc['id']] = $doc;
-            }
+        // 2. Récupérer les documents dans le dossier
+        $documents = $this->documentRepository->findByFolder($folderId, $filters);
+        // Ajoute un type pour le JS
+        foreach ($documents as &$doc) {
+            $doc['type'] = 'document';
         }
 
-        foreach ($attachmentsMap as $parentId => $attachments) {
-            if (isset($documents[$parentId])) {
-                $documents[$parentId]['attachments'] = $attachments;
-            }
-        }
-        
-        return array_merge($items, array_values($documents));
+        // 3. Fusionner les deux listes
+        $allItems = array_merge($folders, $documents);
+
+        return $allItems;
     }
 
-    public function getDocumentDetails(int $docId): ?array
+    public function renameDocument(int $id, string $newName): bool
     {
-        $mainDocument = $this->documentRepository->find($docId);
-        if (!$mainDocument) {
-            return null;
+        if (empty(trim($newName))) {
+            throw new \Exception("Le nouveau nom ne peut pas être vide.");
         }
-
-        $mainDocument['size_formatted'] = $this->formatBytes($mainDocument['size']);
-        $attachments = $this->documentRepository->findAttachments($docId);
-
-        // Formater la taille et récupérer le mime_type pour chaque pièce jointe
-        foreach ($attachments as &$attachment) {
-            $attachmentData = $this->documentRepository->find($attachment['id']);
-            $attachment['size_formatted'] = $this->formatBytes($attachmentData['size'] ?? 0);
-            $attachment['mime_type'] = $attachmentData['mime_type'] ?? 'application/octet-stream';
-        }
-
-        return ['main_document' => $mainDocument, 'attachments' => $attachments];
+        return $this->documentRepository->update($id, ['filename' => $newName]);
     }
-    
-    private function formatBytes($bytes, $precision = 2): string
-    { 
-        if ($bytes === null || $bytes <= 0) return '0 B';
-        $units = ['B', 'KB', 'MB', 'GB', 'TB']; 
-        $base = 1024;
-        $pow = floor(log($bytes) / log($base)); 
-        return round($bytes / ($base ** $pow), $precision) . ' ' . $units[$pow]; 
+
+    public function moveDocument(int $documentId, ?int $targetFolderId): bool
+    {
+        return $this->documentRepository->update($documentId, ['folder_id' => $targetFolderId]);
+    }
+
+    public function downloadDocument(int $id): void
+    {
+        $document = $this->documentRepository->find($id);
+        if (!$document) {
+            http_response_code(404);
+            die('Document non trouvé.');
+        }
+
+        $filePath = __DIR__ . '/../../' . $document['file_path'];
+        if (!file_exists($filePath)) {
+            http_response_code(404);
+            die('Fichier non trouvé sur le serveur.');
+        }
+
+        header('Content-Description: File Transfer');
+        header('Content-Type: ' . $document['mime_type']);
+        header('Content-Disposition: attachment; filename="' . basename($document['filename']) . '"');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        header('Content-Length: ' . filesize($filePath));
+        readfile($filePath);
+        exit;
     }
 }

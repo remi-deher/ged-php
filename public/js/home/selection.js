@@ -1,28 +1,37 @@
 // public/js/home/selection.js
 
-GED.home = GED.home || {};
+let selectAllCheckbox;
+let rowCheckboxes;
+let bulkActionsContainer;
 
-GED.home.selection = {
-    init() {
-        const mainCheckbox = document.getElementById("select-all-checkbox");
-        const docCheckboxes = document.querySelectorAll(".doc-checkbox");
-        
-        this.updateButtonVisibility = () => {
-            const anyChecked = Array.from(docCheckboxes).some(checkbox => checkbox.checked);
-            document.getElementById("bulk-delete-button")?.style.setProperty('display', anyChecked ? 'inline-flex' : 'none');
-            document.getElementById("bulk-print-button")?.style.setProperty('display', anyChecked ? 'inline-flex' : 'none');
-        };
+export function init() {
+    selectAllCheckbox = document.getElementById('select-all-checkbox');
+    bulkActionsContainer = document.querySelector('.bulk-actions-container'); // Assurez-vous que ce conteneur existe
+    
+    document.addEventListener('change', (e) => {
+        if (e.target.matches('#select-all-checkbox, .row-checkbox')) {
+            rowCheckboxes = document.querySelectorAll('.row-checkbox');
+            if (e.target === selectAllCheckbox) {
+                rowCheckboxes.forEach(checkbox => {
+                    checkbox.checked = selectAllCheckbox.checked;
+                });
+            }
+            updateBulkActionsVisibility();
+        }
+    });
+}
 
-        mainCheckbox?.addEventListener("change", (event) => {
-            docCheckboxes.forEach(checkbox => {
-                if (checkbox.closest("tr")?.style.display !== "none") {
-                    checkbox.checked = event.target.checked;
-                }
-            });
-            this.updateButtonVisibility();
-        });
-
-        docCheckboxes.forEach(checkbox => checkbox.addEventListener("change", this.updateButtonVisibility));
-        this.updateButtonVisibility();
+export function updateBulkActionsVisibility() {
+    if (!bulkActionsContainer) return;
+    
+    const anyChecked = document.querySelector('.row-checkbox:checked');
+    if (anyChecked) {
+        bulkActionsContainer.style.display = 'block';
+    } else {
+        bulkActionsContainer.style.display = 'none';
     }
-};
+}
+
+export function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.dataset.id);
+}

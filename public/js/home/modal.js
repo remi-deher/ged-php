@@ -1,83 +1,138 @@
 // public/js/home/modal.js
+import { showToast } from '../utils.js';
 
-GED.home = GED.home || {};
+let refreshCallback;
 
-GED.home.modal = {
-    init() {
-        this.modalEl = document.getElementById('document-modal');
-        if (!this.modalEl) return;
-
-        this.titleEl = document.getElementById('modal-title');
-        this.attachmentsListEl = document.getElementById('modal-attachments-list');
-        this.previewIframeEl = document.getElementById('modal-preview-iframe');
-        
-        // Suppression des références aux anciens éléments qui n'existent plus
-        // this.previewDocTitleEl = document.getElementById('preview-doc-title');
-        // this.previewNewTabBtn = document.getElementById('preview-new-tab');
-        
-        this.modalEl.querySelector('.modal-close')?.addEventListener('click', () => this.close());
-        this.modalEl.addEventListener('click', (e) => {
-            if (e.target === this.modalEl) this.close();
-        });
-
-        const attachmentsToggleBtn = document.getElementById('modal-attachments-toggle-btn');
-        const attachmentsPanel = document.getElementById('modal-attachments');
-
-        // Au clic sur l'en-tête, on bascule la classe 'collapsed'
-        attachmentsPanel?.querySelector('.attachments-header')?.addEventListener('click', () => {
-            attachmentsPanel.classList.toggle('collapsed');
-            const isCollapsed = attachmentsPanel.classList.contains('collapsed');
-            // On change l'icône et le titre en fonction de l'état
-            attachmentsToggleBtn.innerHTML = isCollapsed ? 'ˇ' : 'ˆ';
-            attachmentsToggleBtn.title = isCollapsed ? 'Afficher les pièces jointes' : 'Masquer les pièces jointes';
-        });
-    },
-
-    async openForDocument(docId) {
-        if (!docId || !this.modalEl) return;
-        
-        this.modalEl.style.display = 'flex';
-        
-        // Réinitialisation de l'affichage
-        if (this.titleEl) this.titleEl.textContent = 'Chargement...';
-        if (this.attachmentsListEl) this.attachmentsListEl.innerHTML = '<li>Chargement...</li>';
-        if (this.previewIframeEl) this.previewIframeEl.src = 'about:blank';
-
-        try {
-            const response = await fetch(`/document/details?id=${docId}`);
-            if (!response.ok) throw new Error('Document non trouvé.');
-            const data = await response.json();
-            
-            if (this.titleEl) this.titleEl.textContent = data.main_document.original_filename;
-            
-            const previewUrl = `/document/preview?id=${data.main_document.id}`;
-            if (this.previewIframeEl) this.previewIframeEl.src = previewUrl;
-
-            const attachmentsPanel = document.getElementById('modal-attachments');
-            
-            if (attachmentsPanel) {
-                if (data.attachments && data.attachments.length > 0) {
-                    attachmentsPanel.style.display = 'block';
-                    this.attachmentsListEl.innerHTML = '';
-                    data.attachments.forEach(attachment => {
-                        const li = document.createElement('li');
-                        li.innerHTML = `📄 <a href="/document/download?id=${attachment.id}" target="_blank" title="${attachment.original_filename}">${attachment.original_filename}</a>`;
-                        this.attachmentsListEl.appendChild(li);
-                    });
-                } else {
-                     attachmentsPanel.style.display = 'none';
-                }
-            }
-        } catch (error) {
-            console.error('Erreur:', error);
-            if (this.titleEl) this.titleEl.textContent = 'Erreur';
-            if (this.attachmentsListEl) this.attachmentsListEl.innerHTML = `<li>Impossible de charger les informations.</li>`;
+export function setupDocumentModal() {
+    const modal = document.getElementById('document-modal');
+    if (!modal) return;
+    
+    modal.querySelector('#modal-close-btn').addEventListener('click', () => modal.style.display = 'none');
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
         }
-    },
+    });
 
-    close() {
-        if (!this.modalEl) return;
-        this.modalEl.style.display = 'none';
-        if (this.previewIframeEl) this.previewIframeEl.src = 'about:blank';
+    document.addEventListener('openDocumentModal', (e) => openDocumentModal(e.detail.docId));
+}
+
+export function setupFolderModals(refreshDocumentsCallback) {
+    refreshCallback = refreshDocumentsCallback;
+    const createModal = document.getElementById('create-folder-modal');
+    if (createModal) {
+        document.getElementById('create-folder-btn').addEventListener('click', () => createModal.style.display = 'flex');
+        createModal.querySelector('[data-dismiss="create-folder-modal"]').addEventListener('click', () => createModal.style.display = 'none');
+        createModal.addEventListener('click', e => { if(e.target === createModal) createModal.style.display = 'none'; });
+
+        document.getElementById('create-folder-form').addEventListener('submit', handleCreateFolder);
     }
-};
+}
+
+export function setupRenameModal(refreshDocumentsCallback) {
+    refreshCallback = refreshDocumentsCallback;
+    const renameModal = document.getElementById('rename-modal');
+    if (renameModal) {
+        renameModal.querySelector('[data-dismiss="rename-modal"]').addEventListener('click', () => renameModal.style.display = 'none');
+        renameModal.addEventListener('click', e => { if(e.target === renameModal) renameModal.style.display = 'none'; });
+
+        document.addEventListener('openRenameModal', (e) => {
+            document.getElementById('rename-id').value = e.detail.id;
+            document.getElementById('rename-type').value = e.detail.type;
+            document.getElementById('new-name').value = e.detail.name;
+            renameModal.style.display = 'flex';
+        });
+
+        document.getElementById('rename-form').addEventListener('submit', handleRename);
+    }
+}
+
+async function openDocumentModal(docId) {
+    const modal = document.getElementById('document-modal');
+    const title = document.getElementById('modal-document-title');
+    const iframe = document.getElementById('modal-preview-iframe');
+    
+    title.textContent = 'Chargement...';
+    iframe.src = 'about:blank';
+    modal.style.display = 'flex';
+    
+    try {
+        const response = await fetch(`/api/document/details?id=${docId}`);
+        if (!response.ok) throw new Error('Document non trouvé');
+        const data = await response.json();
+        
+        title.textContent = data.document.filename || 'Prévisualisation';
+        iframe.src = `/document/preview?id=${docId}`;
+        
+        // Gérer les pièces jointes
+        const attachmentList = document.getElementById('modal-attachments-list');
+        const attachmentCount = document.getElementById('modal-attachment-count');
+        attachmentList.innerHTML = '';
+        if (data.attachments && data.attachments.length > 0) {
+            attachmentCount.textContent = data.attachments.length;
+            data.attachments.forEach(att => {
+                const li = document.createElement('li');
+                li.innerHTML = `<i class="fas fa-file"></i> <a href="/document/download?id=${att.id}" target="_blank">${att.filename}</a>`;
+                attachmentList.appendChild(li);
+            });
+            document.getElementById('modal-attachments-panel').style.display = 'block';
+        } else {
+            attachmentCount.textContent = 0;
+            document.getElementById('modal-attachments-panel').style.display = 'none';
+        }
+
+    } catch(error) {
+        console.error(error);
+        title.textContent = 'Erreur';
+        showToast('Impossible de charger le document.', 'error');
+        setTimeout(() => modal.style.display = 'none', 1500);
+    }
+}
+
+async function handleCreateFolder(e) {
+    e.preventDefault();
+    const form = e.target;
+    const folderName = form.querySelector('#folder-name').value;
+    const parentId = new URLSearchParams(window.location.search).get('folder_id') || null;
+
+    try {
+        const response = await fetch('/api/folder/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ folderName, parentId })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+
+        showToast('Dossier créé avec succès.', 'success');
+        form.closest('.modal-overlay').style.display = 'none';
+        form.reset();
+        if(refreshCallback) refreshCallback();
+    } catch(error) {
+        showToast(`Erreur: ${error.message}`, 'error');
+    }
+}
+
+async function handleRename(e) {
+    e.preventDefault();
+    const form = e.target;
+    const id = form.querySelector('#rename-id').value;
+    const type = form.querySelector('#rename-type').value;
+    const newName = form.querySelector('#new-name').value;
+
+    try {
+        const response = await fetch('/api/item/rename', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id, type, newName })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+
+        showToast('Élément renommé.', 'success');
+        form.closest('.modal-overlay').style.display = 'none';
+        if(refreshCallback) refreshCallback();
+    } catch (error) {
+        showToast(`Erreur: ${error.message}`, 'error');
+    }
+}

@@ -4,7 +4,7 @@
 .app-layout {
     display: flex;
     height: 100vh; /* Prend 100% de la hauteur de la fenêtre */
-    padding-top: 0px; /* Laisse de la place pour l'en-tête fixe */
+    padding-top: 0; /* On retire l'espace pour que le layout monte sous la navbar */
 }
 
 /* --- Barre latérale (Gauche) --- */
@@ -15,6 +15,7 @@
     border-right: 1px solid var(--border-color);
     padding: 1rem;
     overflow-y: auto; /* Permet le défilement si la liste de dossiers est longue */
+    margin-top: 60px; /* Pour commencer sous la navbar fixe */
 }
 .sidebar-nav ul li a { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 4px; color: var(--text-color); font-weight: 500; }
 .sidebar-nav ul li.active a, .sidebar-nav ul li a:hover { background-color: var(--primary-color); color: white; }
@@ -30,14 +31,9 @@
 .main-content {
     flex-grow: 1;
     padding: 1.5rem;
-    padding-top: 5rem;
     overflow-y: auto; /* Permet le défilement du contenu principal uniquement */
+    margin-top: 60px; /* Pour commencer sous la navbar fixe */
 }
-.content-header { display: flex;}
-.breadcrumb h1 { font-size: 1.5rem; display: flex; align-items: center; gap: 8px; }
-.breadcrumb a { color: var(--text-color); }
-.breadcrumb a:hover { color: var(--primary-color); }
-.content-actions { display: flex; gap: 1rem; }
 .card.files-list-card { border: none; box-shadow: none; background: none; }
 .files-list-card .card-header {
     display: flex;

@@ -1,71 +1,77 @@
 // public/js/home/printQueue.js
+import { showToast } from '../utils.js';
 
-GED.home = GED.home || {};
+let printQueueModal;
 
-GED.home.printQueue = {
-    init() {
-        this.queueBody = document.getElementById("print-queue-body");
-        this.dashboard = document.getElementById("print-queue-dashboard");
-        if (!this.queueBody || !this.dashboard) return;
-        
-        this.updateQueueStatus();
-        setInterval(() => this.updateQueueStatus(), 7000);
-    },
-    async performAction(url, docId, button, successIcon, originalIcon) {
-        button.disabled = true;
-        button.textContent = '...';
-        const formData = new FormData();
-        formData.append('doc_id', docId);
-        try {
-            const response = await fetch(url, { method: 'POST', body: formData });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || 'Erreur inconnue');
-            GED.utils.showToast(result.message, successIcon);
-            this.updateQueueStatus();
-        } catch (error) {
-            GED.utils.showToast(`Erreur : ${error.message}`, '⚠️');
-            button.disabled = false;
-            button.textContent = originalIcon;
-        }
-    },
-    async updateQueueStatus() {
-        try {
-            const response = await fetch('/print-queue/status');
-            if (!response.ok) throw new Error('Impossible de récupérer le statut de la file d\'impression.');
-            const queue = await response.json();
-            
-            const activeJobs = queue.filter(job => job.status !== 'Terminé');
+export function initPrintQueue() {
+    printQueueModal = document.getElementById('print-queue-modal');
+    // S'il n'y a pas de section pour la file d'impression sur cette page, on arrête.
+    if (!printQueueModal) return;
 
-            if (activeJobs.length > 0) {
-                this.dashboard.style.display = 'block';
-                this.queueBody.innerHTML = '';
-                activeJobs.forEach(job => {
-                    const row = document.createElement('tr');
-                    row.dataset.docId = job.id;
-                    let statusHtml = `<span>${job.status}</span>`;
-                    let actionsHtml = `<button class="button-icon button-delete btn-cancel-print" title="Annuler">❌</button>`;
+    // Met à jour le statut au chargement de la page
+    updateQueueStatus();
 
-                    if (job.status === 'Erreur') {
-                        statusHtml = `<span style="color: var(--danger-color); font-weight: bold;">⚠️ ${job.status}</span>`;
-                        actionsHtml = `<button class="button-icon btn-clear-error" title="Effacer l'erreur">🗑️</button>`;
-                    }
-
-                    row.innerHTML = `<td>${job.filename || 'N/A'}</td><td>${job.job_id || 'N/A'}</td><td>${statusHtml}</td><td>${job.error || 'Aucun détail'}</td><td>${actionsHtml}</td>`;
-                    this.queueBody.appendChild(row);
-                });
-
-                this.queueBody.querySelectorAll('.btn-cancel-print').forEach(btn => {
-                    btn.addEventListener('click', e => this.performAction('/document/cancel-print', e.currentTarget.closest('tr').dataset.docId, e.currentTarget, '🗑️', '❌'));
-                });
-                this.queueBody.querySelectorAll('.btn-clear-error').forEach(btn => {
-                    btn.addEventListener('click', e => this.performAction('/document/clear-print-error', e.currentTarget.closest('tr').dataset.docId, e.currentTarget, '✨', '🗑️'));
-                });
-            } else {
-                this.dashboard.style.display = 'none';
-            }
-        } catch (error) {
-            this.dashboard.style.display = 'block';
-            this.queueBody.innerHTML = `<tr><td colspan="5" class="empty-state" style="color: var(--danger-color);">${error.message}</td></tr>`;
-        }
+    // Ajoute un écouteur pour le bouton de rafraîchissement
+    const refreshBtn = document.getElementById('refresh-print-queue');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', updateQueueStatus);
     }
-};
+}
+
+async function updateQueueStatus() {
+    const queueBody = document.getElementById('print-queue-body');
+    const queueStatus = document.getElementById('print-queue-status');
+    if (!queueBody || !queueStatus) return;
+
+    try {
+        const response = await fetch('/api/print/queue-status');
+        if (!response.ok) throw new Error('Erreur réseau lors de la récupération de la file d\'impression.');
+        
+        const data = await response.json();
+        
+        queueStatus.textContent = `Statut : ${data.status || 'Inconnu'}`;
+        queueBody.innerHTML = ''; // Vide la liste actuelle
+
+        if (data.queue && data.queue.length > 0) {
+            data.queue.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.id}</td>
+                    <td>${item.document_name || 'Nom inconnu'}</td>
+                    <td>${item.status}</td>
+                    <td>${new Date(item.created_at).toLocaleString('fr-FR')}</td>
+                    <td>${item.error_message || '—'}</td>
+                    <td>
+                        <button class="button button-delete" onclick="handleQueueAction('cancel', ${item.id})">Annuler</button>
+                        ${item.status === 'error' ? `<button class="button" onclick="handleQueueAction('retry', ${item.id})">Réessayer</button>` : ''}
+                    </td>
+                `;
+                queueBody.appendChild(row);
+            });
+        } else {
+            queueBody.innerHTML = '<tr><td colspan="6" class="text-center">La file d\'impression est vide.</td></tr>';
+        }
+
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour de la file d\'impression:', error);
+        showToast('Impossible de rafraîchir la file d\'impression.', 'error');
+    }
+}
+
+// Rend la fonction accessible globalement pour les boutons `onclick`
+window.handleQueueAction = async function(action, itemId) {
+    try {
+        const response = await fetch(`/api/print/queue-action`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action, item_id: itemId })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+
+        showToast(result.message, 'success');
+        updateQueueStatus();
+    } catch(error) {
+        showToast(`Erreur : ${error.message}`, 'error');
+    }
+}

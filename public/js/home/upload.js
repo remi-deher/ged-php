@@ -1,99 +1,64 @@
 // public/js/home/upload.js
 
-GED.home = GED.home || {};
+import { showToast } from '../utils.js';
 
-GED.home.upload = {
-    init() {
-        this.dropOverlay = document.getElementById('drop-overlay');
-        const fileInput = document.getElementById('document-upload-input'); // Nouvel ID pour l'input
+let fileInput;
+let refreshCallback;
+let currentFolderId;
 
-        if (!this.dropOverlay || !fileInput) return;
+export function init(folderId, refreshDocumentsCallback) {
+    currentFolderId = folderId;
+    refreshCallback = refreshDocumentsCallback;
 
-        let enterCounter = 0;
-
-        // --- Logique du Drag and Drop (inchangée) ---
-        window.addEventListener('dragenter', (e) => {
+    const uploadBtn = document.getElementById('upload-file-btn');
+    fileInput = document.getElementById('file-input');
+    
+    if (uploadBtn && fileInput) {
+        uploadBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            enterCounter++;
-            const hasFiles = e.dataTransfer && e.dataTransfer.types.includes('Files');
-            if (hasFiles && enterCounter === 1) {
-                this.dropOverlay.classList.add('visible');
-            }
+            fileInput.click();
         });
-
-        window.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            enterCounter--;
-            if (enterCounter === 0) {
-                this.dropOverlay.classList.remove('visible');
-            }
-        });
-
-        window.addEventListener('dragover', (e) => {
-            e.preventDefault();
-        });
-
-        window.addEventListener('drop', (e) => {
-            e.preventDefault();
-            enterCounter = 0;
-            this.dropOverlay.classList.remove('visible');
-
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                this.handleFiles(files);
-            }
-        });
-
-        // --- NOUVELLE LOGIQUE POUR LE BOUTON "ENVOYER" ---
-        // Ajout d'un écouteur sur le changement de l'input file
-        fileInput.addEventListener('change', (e) => {
-            const files = e.target.files;
-            if (files.length > 0) {
-                this.handleFiles(files);
-            }
-        });
-    },
-
-    // --- Fonction de téléversement (commune) ---
-    handleFiles(files) {
-        GED.utils.showToast(`Téléversement de ${files.length} fichier(s)...`, '⏳');
-
-        const formData = new FormData();
-        for (let i = 0; i < files.length; i++) {
-            formData.append('documents[]', files[i]);
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const folderId = urlParams.get('folder_id') || '';
-        formData.append('folder_id', folderId);
-
-        fetch('/upload', {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: formData
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(err => { throw new Error(err.message || 'Erreur serveur'); });
-            }
-            return response.json();
-        })
-        .then(result => {
-            if (result.success) {
-                GED.utils.showToast(result.message, '✅');
-                if (result.documents) {
-                    result.documents.forEach(doc => {
-                        GED.home.main.addDocumentToView(doc);
-                    });
-                }
-            } else {
-                 throw new Error(result.message || 'Une erreur est survenue.');
-            }
-        })
-        .catch(error => {
-            GED.utils.showToast(`Erreur : ${error.message}`, '⚠️');
-        });
+        
+        fileInput.addEventListener('change', handleFileUpload);
     }
-};
+}
+
+async function handleFileUpload(event) {
+    const files = event.target.files;
+    if (files.length === 0) return;
+
+    const formData = new FormData();
+    for (const file of files) {
+        formData.append('documents[]', file);
+    }
+    if (currentFolderId) {
+        formData.append('folder_id', currentFolderId);
+    }
+
+    // Affiche un toast de début d'upload
+    const toastMessage = files.length > 1 ? `${files.length} fichiers en cours de téléversement...` : `'${files[0].name}' en cours de téléversement...`;
+    showToast(toastMessage, 'info');
+
+    try {
+        const response = await fetch('/api/document/upload', {
+            method: 'POST',
+            body: formData,
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Une erreur est survenue.');
+        }
+        
+        showToast('Téléversement terminé avec succès !', 'success');
+        if (refreshCallback) {
+            refreshCallback();
+        }
+    } catch (error) {
+        console.error('Erreur d\'upload:', error);
+        showToast(`Erreur d'upload : ${error.message}`, 'error');
+    } finally {
+        // Réinitialise le champ de fichier pour permettre de re-téléverser le même fichier
+        fileInput.value = '';
+    }
+}

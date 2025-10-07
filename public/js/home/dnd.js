@@ -1,91 +1,126 @@
 // public/js/home/dnd.js
 
-GED.home = GED.home || {};
+import { showToast } from '../utils.js';
 
-GED.home.dnd = {
-    init() {
-        const draggables = document.querySelectorAll('[draggable="true"]');
-        const dropzones = document.querySelectorAll('.dropzone');
+let currentFolderId;
+let refreshCallback;
 
-        draggables.forEach(draggable => {
-            draggable.addEventListener('dragstart', e => {
-                const selectedCheckboxes = document.querySelectorAll('.doc-checkbox:checked');
-                let draggedItems = [];
-                const isChecked = draggable.querySelector('.doc-checkbox')?.checked;
+export function initializeDnd(folderId, refreshDocumentsCallback) {
+    currentFolderId = folderId;
+    refreshCallback = refreshDocumentsCallback;
+    setupGlobalDragEvents();
+}
 
-                if (isChecked && selectedCheckboxes.length > 1) {
-                    selectedCheckboxes.forEach(checkbox => {
-                        const row = checkbox.closest('[draggable="true"]');
-                        if(row) {
-                            const type = row.classList.contains('folder-row') ? 'folder' : 'document';
-                            const id = type === 'folder' ? row.dataset.folderId : row.dataset.docId;
-                            if(id) draggedItems.push({ type, id });
-                        }
-                    });
-                } else {
-                    const type = draggable.classList.contains('folder-row') ? 'folder' : 'document';
-                    const id = type === 'folder' ? draggable.dataset.folderId : draggable.dataset.docId;
-                    if(id) draggedItems.push({ type, id });
-                }
-                
-                if (draggedItems.length > 0) {
-                    e.dataTransfer.setData('application/json', JSON.stringify(draggedItems));
-                    setTimeout(() => draggedItems.forEach(item => {
-                        document.querySelector(`[data-doc-id="${item.id}"], [data-folder-id="${item.id}"]`)?.classList.add('dragging');
-                    }), 0);
-                } else {
-                    e.preventDefault();
-                }
-            });
+function setupGlobalDragEvents() {
+    const dropOverlay = document.getElementById('drop-overlay');
+    if (!dropOverlay) return;
 
-            draggable.addEventListener('dragend', () => {
-                document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
-            });
-        });
+    let dragCounter = 0;
 
-        dropzones.forEach(zone => {
-            zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-            zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-            zone.addEventListener('drop', async e => {
-                e.preventDefault();
-                zone.classList.remove('drag-over');
+    window.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        const hasFiles = e.dataTransfer.types.includes('Files');
+        if (hasFiles) {
+            dragCounter++;
+            dropOverlay.classList.add('visible');
+        }
+    }, false);
 
-                const items = JSON.parse(e.dataTransfer.getData('application/json'));
-                const targetFolderId = zone.dataset.folderId;
-                
-                if (!items || items.length === 0 || typeof targetFolderId === 'undefined') return;
+    window.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        const hasFiles = e.dataTransfer.types.includes('Files');
+        if (hasFiles) {
+            dragCounter--;
+            if (dragCounter === 0) {
+                dropOverlay.classList.remove('visible');
+            }
+        }
+    }, false);
 
-                const docIds = items.filter(item => item.type === 'document').map(item => item.id);
-                const folderIds = items.filter(item => item.type === 'folder').map(item => item.id);
+    window.addEventListener('dragover', (e) => e.preventDefault(), false);
+    
+    window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        dropOverlay.classList.remove('visible');
 
-                if (folderIds.includes(targetFolderId)) {
-                    return GED.utils.showToast('Un dossier ne peut pas être déplacé dans lui-même.', '⚠️');
-                }
+        if (e.dataTransfer.files.length > 0) {
+            handleDrop(e.dataTransfer.files, currentFolderId);
+        }
+    }, false);
+}
 
-                try {
-                    let moved = false;
-                    if (docIds.length > 0) {
-                        const formData = new FormData();
-                        docIds.forEach(id => formData.append('doc_ids[]', id));
-                        formData.append('folder_id', targetFolderId);
-                        const response = await fetch('/document/move', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                        const result = await response.json();
-                        if (!response.ok) throw new Error(result.message);
-                        moved = true;
-                    }
+export function attachGridDragEvents() {
+    const items = document.querySelectorAll('.grid-item[draggable="true"]');
+    items.forEach(item => {
+        item.addEventListener('dragstart', handleDragStart, false);
+    });
 
-                    if (folderIds.length > 0) {
-                         GED.utils.showToast('Le déplacement de dossiers n\'est pas encore pris en charge.', '📁');
-                    }
+    const dropzones = document.querySelectorAll('.grid-item[data-type="folder"]');
+    dropzones.forEach(zone => {
+        zone.addEventListener('dragover', handleDragOver, false);
+        zone.addEventListener('dragleave', handleDragLeave, false);
+        zone.addEventListener('drop', handleItemDrop, false);
+    });
+}
 
-                    if (moved) {
-                        GED.utils.showToast('Déplacement réussi ! Actualisation...', '✅');
-                        setTimeout(() => window.location.reload(), 1000);
-                    }
-                } catch (error) {
-                    GED.utils.showToast(`Erreur : ${error.message}`, '⚠️');
-                }
-            });
-        });
+function handleDragStart(e) {
+    e.dataTransfer.setData('text/plain', e.target.dataset.id);
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    this.classList.add('drag-over');
+    return false;
+}
+
+function handleDragLeave(e) {
+    this.classList.remove('drag-over');
+}
+
+async function handleItemDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.classList.remove('drag-over');
+
+    const docId = e.dataTransfer.getData('text/plain');
+    const folderId = this.dataset.id;
+
+    if (docId && folderId) {
+        await moveItem(docId, folderId);
     }
-};
+}
+
+async function handleDrop(files, folderId) {
+    const uploader = document.querySelector('#file-input');
+    if (uploader) {
+        uploader.files = files;
+        uploader.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+async function moveItem(itemId, targetFolderId) {
+    try {
+        const response = await fetch('/api/item/move', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ itemId, targetFolderId })
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Erreur lors du déplacement.');
+        }
+
+        showToast('Document déplacé avec succès.', 'success');
+        if (refreshCallback) {
+            refreshCallback();
+        }
+    } catch (error) {
+        showToast(`Erreur : ${error.message}`, 'error');
+    }
+}

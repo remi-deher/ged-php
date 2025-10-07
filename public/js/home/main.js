@@ -1,202 +1,236 @@
-// public/js/home/main.js
+import * as ViewSwitcher from './viewSwitcher.js';
+import * as Uploader from './upload.js';
+import * as Sidebar from './sidebar.js';
+import * as Dnd from './dnd.js';
+import * as ContextMenu from './contextMenu.js';
+import * as Selection from './selection.js';
+import * as Filters from './filters.js';
+import { setupDocumentModal, setupFolderModals, setupRenameModal } from './modal.js';
+import { initPrintQueue } from './printQueue.js';
+import { connectWebSocket } from './websocket.js';
+import { showToast } from '../utils.js';
 
-GED.home = GED.home || {};
+GED.App = {
+    currentFolderId: null,
+    currentView: 'list',
 
-GED.home.main = {
     init() {
-        // Initialise tous les modules de la page d'accueil
-        GED.home.sidebar.init();
-        GED.home.modal.init();
-        GED.home.contextMenu.init();
-        GED.home.selection.init();
-        GED.home.viewSwitcher.init();
-        GED.home.dnd.init();
-        GED.home.printQueue.init();
-        GED.home.websocket.init();
-        GED.home.upload.init();
+        this.currentFolderId = new URLSearchParams(window.location.search).get('folder_id');
 
-        // Gère les événements globaux
-        this.initGlobalEvents();
+        ViewSwitcher.init(this.fetchAndDisplayDocuments.bind(this));
+        Uploader.init(this.currentFolderId, this.fetchAndDisplayDocuments.bind(this));
+        Sidebar.init();
+        
+        // CORRECTION ICI : Remplacement de Dnd.init par Dnd.initializeDnd
+        Dnd.initializeDnd(this.currentFolderId, this.fetchAndDisplayDocuments.bind(this));
+        
+        ContextMenu.init(this.fetchAndDisplayDocuments.bind(this));
+        Selection.init();
+        Filters.init(this.fetchAndDisplayDocuments.bind(this));
+        setupDocumentModal();
+        setupFolderModals(this.fetchAndDisplayDocuments.bind(this));
+        setupRenameModal(this.fetchAndDisplayDocuments.bind(this));
+        initPrintQueue();
+        connectWebSocket();
 
-        // Gère le clic sur le bouton "+" du fil d'Ariane
-        document.getElementById('breadcrumb-add-folder')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.createFolder();
+        this.fetchAndDisplayDocuments();
+
+        // Gestion du dropdown "Ajouter"
+        const addBtn = document.getElementById('add-btn');
+        const addDropdown = document.getElementById('add-dropdown');
+        if (addBtn && addDropdown) {
+            addBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                addDropdown.classList.toggle('show');
+            });
+        }
+        
+        // Fermer le dropdown si on clique ailleurs
+        window.addEventListener('click', (event) => {
+            if (addDropdown && !addDropdown.contains(event.target)) {
+                addDropdown.classList.remove('show');
+            }
         });
     },
 
-    initGlobalEvents() {
-        document.getElementById('main-content').addEventListener('click', (e) => {
-            const row = e.target.closest('.document-row:not(.folder-row)');
-            if (!row || e.target.closest('button, a, input[type="checkbox"], form')) {
+    async fetchAndDisplayDocuments() {
+        try {
+            const params = Filters.getFilterParams();
+            if (this.currentFolderId) {
+                params.set('folder_id', this.currentFolderId);
+            }
+            
+            const response = await fetch(`/api/documents?${params.toString()}`);
+            if (!response.ok) {
+                throw new Error('Erreur lors de la récupération des documents.');
+            }
+            const data = await response.json();
+            
+            this.currentView = ViewSwitcher.getCurrentView();
+            const container = document.getElementById('documents-container');
+
+            if (this.currentView === 'grid') {
+                container.innerHTML = this.renderGridView(data.documents);
+                Dnd.attachGridDragEvents();
+            } else {
+                container.innerHTML = this.renderListView(data.documents);
+            }
+            
+            this.attachEventListeners();
+            Selection.updateBulkActionsVisibility();
+
+        } catch (error) {
+            console.error(error);
+            showToast('Impossible de charger les documents.', 'error');
+        }
+    },
+
+    renderListView(documents) {
+        if (!documents || documents.length === 0) {
+            return '<div class="empty-state"><i class="fas fa-folder-open"></i><p>Ce dossier est vide.</p></div>';
+        }
+    
+        const tableHeader = `
+            <table class="table documents-table">
+                <thead>
+                    <tr>
+                        <th class="col-checkbox"><input type="checkbox" id="select-all-checkbox"></th>
+                        <th class="col-icon"></th>
+                        <th>Nom</th>
+                        <th class="col-size">Taille</th>
+                        <th class="col-date">Dernière modification</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+    
+        const tableBody = documents.map(doc => {
+            const isFolder = doc.type === 'folder';
+            const icon = isFolder 
+                ? '<i class="fas fa-folder folder-icon-color"></i>' 
+                : this.getFileIcon(doc.filename);
+            const size = isFolder ? '—' : (doc.size ? this.formatBytes(doc.size) : 'N/A');
+            const date = new Date(doc.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            return `
+                <tr class="${isFolder ? 'folder-row' : 'document-row'}" data-id="${doc.id}" data-type="${doc.type}" data-name="${doc.name || doc.filename}" draggable="${!isFolder}">
+                    <td class="col-checkbox"><input type="checkbox" class="row-checkbox" data-id="${doc.id}"></td>
+                    <td class="col-icon">${icon}</td>
+                    <td>
+                        <a href="${isFolder ? `/?folder_id=${doc.id}` : '#'}" class="folder-link" data-id="${doc.id}" data-type="${doc.type}">
+                           ${doc.name || doc.filename}
+                        </a>
+                    </td>
+                    <td class="col-size">${size}</td>
+                    <td class="col-date">${date}</td>
+                    <td class="col-actions">
+                        <div class="document-actions">
+                           <button class="button-icon" data-action="download" data-id="${doc.id}" title="Télécharger"><i class="fas fa-download"></i></button>
+                           <button class="button-icon" data-action="delete" data-id="${doc.id}" title="Supprimer"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    
+        const tableFooter = '</tbody></table>';
+        return tableHeader + tableBody + tableFooter;
+    },
+
+    renderGridView(documents) {
+        if (!documents || documents.length === 0) {
+            return '<div class="empty-state"><i class="fas fa-folder-open"></i><p>Ce dossier est vide.</p></div>';
+        }
+
+        const items = documents.map(doc => {
+            const isFolder = doc.type === 'folder';
+            const icon = isFolder 
+                ? '<i class="fas fa-folder folder-icon-color"></i>'
+                : this.getFileIcon(doc.filename);
+            
+            return `
+                <div class="grid-item" data-id="${doc.id}" data-type="${doc.type}" data-name="${doc.name || doc.filename}" draggable="${!isFolder}">
+                    <div class="grid-item-thumbnail">
+                        ${icon}
+                    </div>
+                    <div class="grid-item-name">${doc.name || doc.filename}</div>
+                </div>
+            `;
+        }).join('');
+        
+        return `<div class="grid-view-container">${items}</div>`;
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('documents-container');
+
+        container.addEventListener('click', (e) => {
+            const target = e.target;
+            const row = target.closest('.document-row, .grid-item');
+            const folderLink = target.closest('.folder-link, .folder-row, .grid-item[data-type="folder"]');
+            
+            if (folderLink && !target.closest('.button-icon, .row-checkbox')) {
+                e.preventDefault();
+                const folderId = folderLink.dataset.id;
+                window.location.href = `/?folder_id=${folderId}`;
                 return;
             }
 
-            if (row.clickTimer) {
-                clearTimeout(row.clickTimer);
-                row.clickTimer = null;
-                const docId = row.dataset.docId;
-                if (docId) GED.home.modal.openForDocument(docId);
-            } else {
-                row.clickTimer = setTimeout(() => {
-                    row.clickTimer = null;
-                    const docId = row.dataset.docId;
-                    if (docId) GED.home.sidebar.openForDocument(docId);
-                }, 250);
+            if (row && !target.closest('.button-icon, .row-checkbox, a')) {
+                const docId = row.dataset.id;
+                Sidebar.openDetails(docId);
+            }
+
+            const actionButton = target.closest('button[data-action]');
+            if(actionButton) {
+                const action = actionButton.dataset.action;
+                const id = actionButton.dataset.id;
+                if (action === 'delete') {
+                    ContextMenu.deleteItem(id);
+                } else if (action === 'download') {
+                    ContextMenu.downloadItem(id);
+                }
+            }
+        });
+        
+        container.addEventListener('contextmenu', (e) => {
+            const item = e.target.closest('.document-row, .grid-item, .folder-row');
+            if (item) {
+                e.preventDefault();
+                ContextMenu.show(e, item.dataset.id, item.dataset.type, item.dataset.name);
             }
         });
     },
-    
-    async createFolder() {
-        const folderName = prompt("Entrez le nom du nouveau dossier :");
-        if (!folderName || !folderName.trim()) {
-            return;
-        }
 
-        const formData = new FormData();
-        formData.append('folder_name', folderName.trim());
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const parentId = urlParams.get('folder_id') || 'root';
-        formData.append('parent_id', parentId);
-
-        try {
-            const response = await fetch('/folder/create', {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: formData
-            });
-
-            const result = await response.json();
-            if (!response.ok || !result.success) {
-                throw new Error(result.message || 'Erreur du serveur.');
-            }
-
-            GED.utils.showToast(`Dossier "${result.folder.name}" créé.`, '✅');
-            this.addFolderToView(result.folder);
-
-        } catch (error) {
-            GED.utils.showToast(`Erreur : ${error.message}`, '⚠️');
+    getFileIcon(filename) {
+        const extension = filename.split('.').pop().toLowerCase();
+        switch (extension) {
+            case 'pdf': return '<i class="fas fa-file-pdf" style="color: #D32F2F;"></i>';
+            case 'doc':
+            case 'docx': return '<i class="fas fa-file-word" style="color: #1976D2;"></i>';
+            case 'xls':
+            case 'xlsx': return '<i class="fas fa-file-excel" style="color: #388E3C;"></i>';
+            case 'png':
+            case 'jpg':
+            case 'jpeg':
+            case 'gif': return '<i class="fas fa-file-image" style="color: #FBC02D;"></i>';
+            case 'eml':
+            case 'msg': return '<i class="fas fa-envelope" style="color: #00796B;"></i>';
+            default: return '<i class="fas fa-file-alt" style="color: #757575;"></i>';
         }
     },
-    
-    addFolderToView(folder) {
-        document.querySelector('.empty-state')?.remove();
 
-        // 1. Ajouter à la vue principale (liste)
-        const tableBody = document.querySelector('.documents-table tbody');
-        if (tableBody) {
-            const newRow = document.createElement('tr');
-            newRow.className = 'folder-row dropzone';
-            newRow.dataset.folderId = folder.id;
-            newRow.setAttribute('draggable', 'true');
-            newRow.innerHTML = `
-                <td class="col-checkbox"></td>
-                <td class="col-icon"><i class="fas fa-folder folder-icon-color"></i></td>
-                <td><a href="/?folder_id=${folder.id}" class="folder-link">${folder.name}</a></td>
-                <td></td>
-                <td class="col-size">--</td>
-                <td class="col-date"></td>
-                <td class="col-actions"></td>
-            `;
-            tableBody.prepend(newRow);
-        }
-
-        // 2. Ajouter à la vue principale (grille)
-        const gridView = document.getElementById('document-grid-view');
-        if (gridView) {
-            const newGridItem = document.createElement('a');
-            newGridItem.href = `/?folder_id=${folder.id}`;
-            newGridItem.className = 'grid-item folder-row dropzone';
-            newGridItem.dataset.folderId = folder.id;
-            newGridItem.setAttribute('draggable', 'true');
-            newGridItem.innerHTML = `
-                <div class="grid-item-thumbnail"><i class="fas fa-folder folder-icon-color"></i></div>
-                <div class="grid-item-name" title="${folder.name}">${folder.name}</div>
-            `;
-            gridView.prepend(newGridItem);
-        }
-
-        // 3. Ajouter à l'arborescence de la sidebar
-        const folderTree = document.querySelector('.folder-tree');
-        const parentLink = folder.parent_id 
-            ? folderTree.querySelector(`a[href="/?folder_id=${folder.parent_id}"]`)
-            : null;
-        
-        let targetUl = parentLink ? parentLink.closest('li').querySelector('ul') : folderTree.querySelector(':scope > ul');
-
-        if (!targetUl) {
-            if (parentLink) {
-                 targetUl = document.createElement('ul');
-                 parentLink.closest('li').append(targetUl);
-            } else {
-                targetUl = folderTree.querySelector('ul');
-            }
-        }
-        
-        const newLi = document.createElement('li');
-        newLi.innerHTML = `<a href="/?folder_id=${folder.id}" class="dropzone" data-folder-id="${folder.id}"><i class="fas fa-folder"></i> ${folder.name}</a>`;
-        if (targetUl) {
-            targetUl.prepend(newLi);
-        }
-
-        GED.home.dnd.init();
-    },
-
-    addDocumentToView(doc) {
-        document.querySelector('.empty-state')?.remove();
-
-        const docName = doc.original_filename || doc.name;
-
-        // Vue Liste
-        const tableBody = document.querySelector('.documents-table tbody');
-        if (tableBody) {
-            const newRow = document.createElement('tr');
-            newRow.className = 'document-row';
-            newRow.dataset.docId = doc.id;
-            newRow.setAttribute('draggable', 'true');
-            
-            const statusMap = { 'received': { color: '#007bff', label: 'Reçu' }};
-            const statusInfo = statusMap[doc.status] || { color: '#6c757d', label: 'Inconnu' };
-            const date = new Date(doc.created_at).toLocaleString('fr-FR');
-            
-            newRow.innerHTML = `
-                <td class="col-checkbox"><input type="checkbox" name="doc_ids[]" value="${doc.id}" class="doc-checkbox" form="bulk-action-form"></td>
-                <td class="col-icon"><i class="fas ${GED.home.sidebar.getFileIconClass(doc.mime_type)}"></i></td>
-                <td class="col-name"><span class="status-dot" style="background-color: ${statusInfo.color};" title="${statusInfo.label}"></span><strong>${docName}</strong></td>
-                <td>${doc.source_details || 'Manuel'}</td>
-                <td class="col-size">${doc.size_formatted}</td>
-                <td class="col-date">${date.split(' ')[0]}</td>
-                <td class="col-actions">
-                    <div class="document-actions">
-                        <form action="/document/print" method="POST" class="action-form"><input type="hidden" name="doc_id" value="${doc.id}"><button type="submit" class="button-icon" title="Imprimer"><i class="fas fa-print"></i></button></form>
-                        <form action="/document/delete" method="POST" class="action-form" onsubmit="return confirm('Confirmer ?');"><input type="hidden" name="doc_ids[]" value="${doc.id}"><button type="submit" class="button-icon button-delete" title="Corbeille"><i class="fas fa-trash"></i></button></form>
-                    </div>
-                </td>
-            `;
-            tableBody.prepend(newRow);
-        }
-        
-        // Vue Grille
-        const gridView = document.getElementById('document-grid-view');
-        if (gridView) {
-            const newGridItem = document.createElement('div');
-            newGridItem.className = 'grid-item document-row';
-            newGridItem.dataset.docId = doc.id;
-            newGridItem.setAttribute('draggable', 'true');
-            
-            newGridItem.innerHTML = `
-                <div class="grid-item-thumbnail"><i class="fas ${GED.home.sidebar.getFileIconClass(doc.mime_type)}"></i></div>
-                <div class="grid-item-name" title="${docName}">${docName}</div>
-            `;
-            gridView.prepend(newGridItem);
-        }
-        
-        GED.home.dnd.init();
-        GED.home.selection.init();
+    formatBytes(bytes, decimals = 2) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
     }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    GED.home.main.init();
+    GED.App.init();
 });

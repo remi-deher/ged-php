@@ -6,387 +6,174 @@ namespace App\Controllers;
 use App\Services\DocumentService;
 use App\Services\FolderService;
 use App\Services\FileUploaderService;
+use App\Services\PreviewService;
 use App\Services\PrintService;
 use App\Services\TrashService;
-use App\Services\PreviewService;
-use App\Repositories\DocumentRepository;
-use App\Repositories\FolderRepository;
-use WebSocket\Client as WebSocketClient;
-use PDO;
 
 class DocumentController
 {
-    private DocumentService $documentService;
-    private FolderService $folderService;
-    private PrintService $printService;
-    private TrashService $trashService;
-    private PreviewService $previewService;
-    private DocumentRepository $documentRepository;
-    private FolderRepository $folderRepository;
+    private $documentService;
+    private $folderService;
+    private $uploaderService;
+    private $previewService;
+    private $printService;
+    private $trashService;
 
     public function __construct()
     {
         $this->documentService = new DocumentService();
         $this->folderService = new FolderService();
+        $this->uploaderService = new FileUploaderService();
+        $this->previewService = new PreviewService();
         $this->printService = new PrintService();
         $this->trashService = new TrashService();
-        $this->previewService = new PreviewService();
-        $this->documentRepository = new DocumentRepository();
-        $this->folderRepository = new FolderRepository();
     }
 
-    // --- Logique d'affichage ---
-
-    public function listDocuments(): void
+    // Affiche la page d'accueil
+    public function home()
     {
-        $currentFolderId = isset($_GET['folder_id']) && $_GET['folder_id'] !== 'root' ? (int)$_GET['folder_id'] : null;
-        $searchQuery = $_GET['q'] ?? null;
-        
-        $sort = $_GET['sort'] ?? 'created_at';
-        $order = $_GET['order'] ?? 'desc';
-        
-        $filters = [
-            'mime_type' => $_GET['mime_type'] ?? null,
-            'source' => $_GET['source'] ?? null,
-        ];
-
-        $folderTree = $this->folderService->getFolderTree();
-        $breadcrumbs = $this->folderService->getBreadcrumbs($currentFolderId);
-        $currentFolder = !empty($breadcrumbs) ? end($breadcrumbs) : null;
-        $items = $this->documentService->getItemsForFolder($currentFolderId, $searchQuery, $sort, $order, $filters);
-        
-        require_once dirname(__DIR__, 2) . '/templates/home.php';
+        $folderId = $_GET['folder_id'] ?? null;
+        $currentFolder = $this->folderService->getFolderById($folderId);
+        // Passer les variables nécessaires à la vue
+        $folderService = $this->folderService;
+        require_once __DIR__ . '/../../templates/home.php';
+    }
+    
+    // Affiche la corbeille
+    public function trash()
+    {
+        $documents = $this->trashService->getTrashedItems();
+        require_once __DIR__ . '/../../templates/trash.php';
     }
 
-    public function getDocumentDetails(int $docId): void
+    // Gère le téléchargement d'un document
+    public function download()
     {
-        header('Content-Type: application/json');
-        $details = $this->documentService->getDocumentDetails($docId);
-        if (!$details) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Document not found']);
+        $docId = $_GET['id'] ?? null;
+        if (!$docId) {
+            http_response_code(400);
+            echo "ID de document manquant.";
             return;
         }
-        echo json_encode($details);
+        $this->documentService->downloadDocument($docId);
+    }
+    
+    // Génère un aperçu de document
+    public function preview()
+    {
+        $docId = $_GET['id'] ?? null;
+        if (!$docId) {
+            http_response_code(400);
+            echo "ID de document manquant.";
+            return;
+        }
+        $this->previewService->generatePreview($docId);
     }
 
-    public function previewDocument(int $docId): void
+    // --------------------------------------------------------------------
+    // SECTION API - TOUTES LES MÉTHODES CI-DESSOUS SONT POUR LE JAVASCRIPT
+    // --------------------------------------------------------------------
+
+    // Envoie la liste des documents et dossiers en JSON
+    public function apiGetDocuments()
     {
-        // On récupère d'abord les métadonnées du document
-        $document = $this->documentRepository->find($docId);
-
-        if (!$document) {
-            http_response_code(404);
-            echo "<h1>Document non trouvé</h1>";
-            exit;
-        }
-
-        // Si le document est un e-mail HTML, on l'affiche directement
-        if ($document['mime_type'] === 'text/html') {
-            $filePath = dirname(__DIR__, 2) . '/storage/' . $document['stored_filename'];
-            if (!file_exists($filePath)) {
-                http_response_code(404);
-                echo "<h1>Fichier non trouvé sur le serveur</h1>";
-                exit;
-            }
-
-            header_remove('X-Frame-Options'); // Permet l'affichage en iframe
-            header('Content-Type: text/html; charset=utf-8');
-            readfile($filePath);
-            exit;
-        }
-
-        // Pour tous les autres types de fichiers, on utilise la logique de prévisualisation existante
+        header('Content-Type: application/json');
         try {
-            $preview = $this->previewService->getPreview($docId);
-
-            header_remove('X-Frame-Options');
-            header('Content-Type: ' . $preview['mimeType']);
-            header('Content-Disposition: inline; filename="' . basename($preview['fileName']) . '"');
-            header('Content-Length: ' . filesize($preview['filePath']));
-            readfile($preview['filePath']);
-            exit;
-        } catch (\RuntimeException $e) {
-            http_response_code($e->getCode() ?: 500);
-            echo "<h1>Erreur de prévisualisation</h1>";
-            echo "<p>Impossible de générer un aperçu pour ce document.</p>";
-            echo "<p><strong>Détail :</strong> " . htmlspecialchars($e->getMessage()) . "</p>";
-            if ($e->getCode() === 500) {
-                 echo "<p><strong>Note :</strong> Pour les documents non-natifs, assurez-vous que LibreOffice est bien installé sur le serveur.</p>";
-            }
-            exit;
+            $folderId = $_GET['folder_id'] ?? null;
+            $filters = [
+                'type' => $_GET['type'] ?? null,
+                'status' => $_GET['status'] ?? null,
+                'start_date' => $_GET['start_date'] ?? null,
+                'end_date' => $_GET['end_date'] ?? null,
+            ];
+            $documents = $this->documentService->getDocumentsAndFolders($folderId, $filters);
+            echo json_encode(['success' => true, 'documents' => $documents]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
 
-    // --- Actions sur les dossiers et documents ---
-
-    public function createFolder(): void
+    // Gère le téléversement de fichiers via l'API
+    public function apiUpload()
     {
-        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-
-        if (isset($_POST['folder_name']) && !empty(trim($_POST['folder_name']))) {
-            $folderName = trim($_POST['folder_name']);
-            $parentId = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' && $_POST['parent_id'] !== 'root' ? (int)$_POST['parent_id'] : null;
-            
-            try {
-                $newFolderId = $this->folderRepository->create($folderName, $parentId);
-                
-                if ($isAjax) {
-                    header('Content-Type: application/json');
-                    $newFolder = $this->folderRepository->find($newFolderId);
-                    echo json_encode(['success' => true, 'folder' => $newFolder]);
-                    exit();
-                }
-
-            } catch (\Exception $e) {
-                if ($isAjax) {
-                    http_response_code(500);
-                    header('Content-Type: application/json');
-                    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-                    exit();
-                }
+        header('Content-Type: application/json');
+        try {
+            $folderId = $_POST['folder_id'] ?? null;
+            $files = $_FILES['documents'] ?? [];
+            if (empty($files)) {
+                throw new \Exception("Aucun fichier n'a été téléversé.");
             }
-        }
-        
-        if (!$isAjax) {
-            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
-            exit();
+            $result = $this->uploaderService->handleUpload($files, $folderId);
+            echo json_encode(['success' => true, 'files' => $result]);
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
 
-    public function uploadDocument(): void
+    // Crée un dossier via l'API
+    public function apiCreateFolder($data)
     {
-        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-        
-        $filesKey = isset($_FILES['documents']) ? 'documents' : 'document';
+        header('Content-Type: application/json');
+        try {
+            $folderName = $data['folderName'] ?? null;
+            $parentId = $data['parentId'] ?? null;
+            $folder = $this->folderService->createFolder($folderName, $parentId);
+            echo json_encode(['success' => true, 'folder' => $folder]);
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
 
-        if (empty($_FILES[$filesKey])) {
-            if ($isAjax) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Aucun fichier reçu.']);
+    // Renomme un élément (dossier ou document) via l'API
+    public function apiRenameItem($data)
+    {
+        header('Content-Type: application/json');
+        try {
+            $id = $data['id'] ?? null;
+            $type = $data['type'] ?? null;
+            $newName = $data['newName'] ?? null;
+
+            if ($type === 'folder') {
+                $this->folderService->renameFolder($id, $newName);
             } else {
-                header('Location: /?error=nofile');
+                $this->documentService->renameDocument($id, $newName);
             }
-            exit();
-        }
-
-        $files = $this->reformatFilesArray($_FILES[$filesKey]);
-        $currentFolderId = isset($_POST['folder_id']) && !empty($_POST['folder_id']) ? (int)$_POST['folder_id'] : null;
-        $uploader = new FileUploaderService();
-        $errors = [];
-        $successes = [];
-
-        foreach ($files as $file) {
-            try {
-                $uploadedFile = $uploader->handleUpload($file);
-                $uploadedFile['folder_id'] = $currentFolderId;
-                $docId = $this->documentRepository->create($uploadedFile);
-                $newDocument = $this->documentService->getDocumentDetails($docId);
-                $this->notifyClients('new_document', ['filename' => $uploadedFile['original_filename']]);
-                $successes[] = $newDocument['main_document'];
-            } catch (\Exception $e) {
-                $errors[] = $file['name'] . ': ' . $e->getMessage();
-                error_log('Upload Error: ' . $e->getMessage());
-            }
-        }
-
-        if ($isAjax) {
-            header('Content-Type: application/json');
-            if (!empty($successes) && empty($errors)) {
-                echo json_encode(['success' => true, 'message' => count($successes) . " fichier(s) téléversé(s) avec succès !", 'documents' => $successes]);
-            } else {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => "Erreur lors du téléversement : " . implode(', ', $errors), 'documents' => $successes]);
-            }
-        } else {
-            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
-        }
-        exit();
-    }
-
-    private function reformatFilesArray(array $files): array
-    {
-        if (!is_array($files['name'])) {
-            return [$files];
-        }
-
-        $fileArray = [];
-        $fileCount = count($files['name']);
-        $fileKeys = array_keys($files);
-
-        for ($i = 0; $i < $fileCount; $i++) {
-            foreach ($fileKeys as $key) {
-                $fileArray[$i][$key] = $files[$key][$i];
-            }
-        }
-        return $fileArray;
-    }
-
-    public function moveDocument(): void
-    {
-        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-        $docIds = isset($_POST['doc_ids']) && is_array($_POST['doc_ids']) ? array_map('intval', $_POST['doc_ids']) : [];
-
-        if (!empty($docIds) && isset($_POST['folder_id'])) {
-            try {
-                $folderId = $_POST['folder_id'] === 'root' ? null : (int)$_POST['folder_id'];
-                $this->documentRepository->move($docIds, $folderId);
-                
-                if ($isAjax) {
-                    header('Content-Type: application/json');
-                    echo json_encode(['success' => true, 'message' => 'Document(s) déplacé(s) avec succès.']);
-                    exit();
-                }
-            } catch (\Exception $e) {
-                if ($isAjax) {
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-                    exit();
-                }
-            }
-        }
-        if (!$isAjax) {
-            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
-            exit();
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
 
-    public function downloadDocument(int $docId): void
-    {
-        $doc = $this->documentRepository->find($docId);
-        if (!$doc) { 
-            http_response_code(404); 
-            die('Document not found.'); 
-        }
-        $filePath = dirname(__DIR__, 2) . '/storage/' . $doc['stored_filename'];
-        if (!file_exists($filePath)) { 
-            http_response_code(404); 
-            die('File not found on server.'); 
-        }
-        header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="' . basename($doc['original_filename']) . '"');
-        header('Content-Length: ' . filesize($filePath));
-        readfile($filePath);
-        exit;
-    }
-    
-    // --- Logique d'impression ---
-
-    public function getPrintQueueStatus(): void
+    // Supprime un élément via l'API (le met à la corbeille)
+    public function apiDeleteItem($data)
     {
         header('Content-Type: application/json');
         try {
-            $queueStatus = $this->printService->getPrintQueueStatus();
-            echo json_encode($queueStatus);
-        } catch (\Throwable $e) {
-            error_log("Erreur dans getPrintQueueStatus: " . $e->getMessage());
-            http_response_code(500);
-            echo json_encode(['error' => 'Erreur interne du serveur.', 'message' => $e->getMessage()]);
+            $id = $data['id'] ?? null;
+            $this->trashService->moveToTrash($id);
+            echo json_encode(['success' => true]);
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
-        exit();
-    }
-
-    public function printSingleDocument(): void
-    {
-        if (!isset($_POST['doc_id'])) die("ID de document manquant.");
-        $this->printService->sendToPrinter((int)$_POST['doc_id']);
-        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
-        exit();
-    }
-
-    public function printBulkDocuments(): void
-    {
-        if (empty($_POST['doc_ids'])) die("Aucun document sélectionné.");
-        foreach ($_POST['doc_ids'] as $docId) {
-            $this->printService->sendToPrinter((int)$docId);
-        }
-        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
-        exit();
     }
     
-    public function cancelPrintJob(): void
+    // Déplace un élément vers un autre dossier via l'API
+    public function apiMoveItem($data)
     {
         header('Content-Type: application/json');
-        if (empty($_POST['doc_id'])) { http_response_code(400); echo json_encode(['error' => 'ID de document manquant.']); exit(); }
-        
         try {
-            $this->printService->cancelPrintJob((int)$_POST['doc_id']);
-            $this->notifyClients('print_cancelled', ['doc_id' => (int)$_POST['doc_id']]);
-            echo json_encode(['success' => true, 'message' => 'Travail d\'impression annulé.']);
+            $itemId = $data['itemId'] ?? null;
+            $targetFolderId = $data['targetFolderId'] ?? null;
+            $this->documentService->moveDocument($itemId, $targetFolderId);
+            echo json_encode(['success' => true]);
         } catch (\Exception $e) {
-            http_response_code(500);
-            error_log("Erreur d'annulation : " . $e->getMessage());
-            echo json_encode(['error' => $e->getMessage()]);
-        }
-        exit();
-    }
-    
-    public function clearPrintJobError(): void
-    {
-        header('Content-Type: application/json');
-        if (empty($_POST['doc_id'])) { http_response_code(400); echo json_encode(['error' => 'ID de document manquant.']); exit(); }
-        
-        try {
-            $this->printService->clearPrintJobError((int)$_POST['doc_id']);
-            $this->notifyClients('print_error_cleared', ['doc_id' => (int)$_POST['doc_id']]);
-            echo json_encode(['success' => true, 'message' => 'L\'erreur a été effacée.']);
-        } catch (\Exception $e) {
-            http_response_code(500);
-            error_log("Erreur nettoyage erreur impression : " . $e->getMessage());
-            echo json_encode(['error' => $e->getMessage()]);
-        }
-        exit();
-    }
-    
-    // --- Logique de la corbeille ---
-
-    public function moveToTrash(): void
-    {
-        if (!empty($_POST['doc_ids'])) {
-            $this->trashService->moveToTrash($_POST['doc_ids']);
-            $this->notifyClients('document_deleted', ['doc_ids' => $_POST['doc_ids']]);
-        }
-        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/'));
-        exit();
-    }
-
-    public function listTrash(): void
-    {
-        $folderTree = $this->folderService->getFolderTree();
-        $currentFolderId = null;
-
-        $documents = $this->trashService->getTrashedDocuments();
-        require_once dirname(__DIR__, 2) . '/templates/trash.php';
-    }
-    
-    public function restoreDocument(): void
-    {
-        if (!empty($_POST['doc_ids'])) {
-            $this->trashService->restoreDocuments($_POST['doc_ids']);
-        }
-        header('Location: /trash');
-        exit();
-    }
-
-    public function forceDelete(): void
-    {
-        if (!empty($_POST['doc_ids'])) {
-            $this->trashService->forceDeleteDocuments($_POST['doc_ids']);
-        }
-        header('Location: /trash');
-        exit();
-    }
-
-    // --- Helper ---
-
-    private function notifyClients(string $action, array $data): void
-    {
-        try {
-            $client = new WebSocketClient("ws://127.0.0.1:8082");
-            $client->send(json_encode(['action' => $action, 'data' => $data]));
-            $client->close();
-        } catch (\Exception $e) {
-            error_log("Impossible de se connecter au serveur WebSocket : " . $e->getMessage());
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
 }

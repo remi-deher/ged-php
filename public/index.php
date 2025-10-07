@@ -1,109 +1,71 @@
 <?php
 // public/index.php
 
+// Affiche toutes les erreurs, y compris les erreurs de démarrage
 ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/../vendor/autoload.php';
+// Tente de charger l'autoloader et intercepte l'erreur si le fichier est introuvable
+try {
+    // Cette ligne est cruciale
+    require_once __DIR__ . '/../vendor/autoload.php';
+} catch (\Throwable $e) {
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => false,
+        'message' => "Erreur critique : Impossible de charger l'autoloader de Composer. Vérifiez les permissions du dossier 'vendor'.",
+        'error' => $e->getMessage()
+    ]);
+    exit;
+}
 
-use App\Controllers\DocumentController;
-use App\Controllers\SettingsController;
 
-$requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+// --- BLOC DE DÉBOGAGE PRINCIPAL ---
+// Ce bloc va attraper n'importe quelle erreur fatale (comme "Classe non trouvée")
+// et renvoyer un message JSON propre au lieu d'une page HTML d'erreur.
+try {
+    // Démarre la session
+    session_start();
 
-// On instancie les contrôleurs qui gèrent les routes
-$documentController = new DocumentController();
-$settingsController = new SettingsController();
+    // Routeur
+    $requestUri = strtok($_SERVER['REQUEST_URI'], '?');
+    $requestMethod = $_SERVER['REQUEST_METHOD'];
 
-switch ($requestUri) {
-    // Pages principales
-    case '/': $documentController->listDocuments(); break;
-    case '/trash': $documentController->listTrash(); break;
-    
-    // Réglages
-    case '/settings': $settingsController->showSettings(); break;
-    
-    // Actions sur les imprimantes (gérées par SettingsController)
-    case '/settings/printer/save':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->savePrinter();
-        break;
-    case '/settings/printer/delete':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->deletePrinter();
-        break;
-    case '/settings/printer/test':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->testPrinter();
-        break;
+    // Point d'entrée pour la seule route qui nous pose problème
+    if ($requestMethod === 'GET' && $requestUri === '/api/documents') {
+        // On instancie le contrôleur. C'est ici que l'erreur se produit probablement.
+        $controller = new \App\Controllers\DocumentController();
+        $controller->apiGetDocuments();
 
-    // Actions sur les tenants et comptes (gérées par SettingsController)
-    case '/settings/tenant/save':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->saveTenant();
-        break;
-    case '/settings/tenant/delete':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->deleteTenant();
-        break;
-    case '/settings/account/save':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->saveAccount();
-        break;
-    case '/settings/account/delete':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->deleteAccount();
-        break;
-    case '/settings/ajax/list-folders':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->ajaxListFolders();
-        break;
-    case '/settings/ajax/create-folder':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $settingsController->ajaxCreateFolder();
-        break;
-        
-    // Actions sur les documents (gérées par DocumentController)
-    case '/upload':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->uploadDocument();
-        break;
-    case '/document/details':
-        if (isset($_GET['id'])) $documentController->getDocumentDetails((int)$_GET['id']);
-        break;
-    case '/document/download':
-        if (isset($_GET['id'])) $documentController->downloadDocument((int)$_GET['id']);
-        break;
-    case '/document/preview':
-        if (isset($_GET['id'])) $documentController->previewDocument((int)$_GET['id']);
-        break;
-    case '/document/move':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->moveDocument();
-        break;
-    case '/folder/create':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->createFolder();
-        break;
+    } elseif ($requestMethod === 'GET' && $requestUri === '/') {
+        $controller = new \App\Controllers\DocumentController();
+        $controller->home();
 
-    // Actions sur la corbeille (gérées par DocumentController)
-    case '/document/delete':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->moveToTrash();
-        break;
-    case '/document/restore':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->restoreDocument();
-        break;
-    case '/document/force-delete':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->forceDelete();
-        break;
-        
-    // Actions sur la file d'impression (gérées par DocumentController)
-    case '/print-queue/status':
-        $documentController->getPrintQueueStatus();
-        break;
-    case '/document/print':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->printSingleDocument();
-        break;
-    case '/document/bulk-print':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->printBulkDocuments();
-        break;
-    case '/document/cancel-print':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->cancelPrintJob();
-        break;
-    case '/document/clear-print-error':
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') $documentController->clearPrintJobError();
-        break;
-        
-    default:
+    } else {
+        // Gérer les autres routes si nécessaire, sinon renvoyer 404
         http_response_code(404);
-        echo "<h1>404 - Page non trouvée</h1>";
-        break;
+        echo json_encode([
+            'success' => false,
+            'message' => "Route non trouvée : {$requestMethod} {$requestUri}"
+        ]);
+    }
+
+} catch (\Throwable $e) {
+    // Si une erreur fatale se produit (ex: classe non trouvée), ce bloc l'attrapera
+    http_response_code(500);
+    header('Content-Type: application/json');
+    // On log l'erreur pour pouvoir la consulter sur le serveur
+    error_log($e->getMessage() . "\n" . $e->getTraceAsString());
+    // On renvoie un message JSON clair au navigateur
+    echo json_encode([
+        'success' => false,
+        'message' => "Une erreur fatale est survenue sur le serveur.",
+        'error_type' => get_class($e),
+        'error_message' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine()
+    ]);
+    exit;
 }

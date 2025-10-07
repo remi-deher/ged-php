@@ -1,116 +1,102 @@
 // public/js/home/sidebar.js
+import { showToast } from '../utils.js';
 
-GED.home = GED.home || {};
+let sidebar;
 
-GED.home.sidebar = {
-    init() {
-        this.sidebarEl = document.getElementById('details-sidebar');
-        this.mainContentEl = document.getElementById('main-content');
-        if (!this.sidebarEl || !this.mainContentEl) return;
+export function init() {
+    sidebar = document.getElementById('details-sidebar');
+    if (!sidebar) return;
 
-        this.titleEl = document.getElementById('sidebar-title');
-        this.contentWrapper = document.getElementById('sidebar-content-wrapper');
-        
-        document.getElementById('sidebar-close-btn')?.addEventListener('click', () => this.close());
-    },
-
-    async openForDocument(docId) {
-        if (!docId || !this.sidebarEl) return;
-        
-        this.sidebarEl.classList.add('open');
-        this.mainContentEl.classList.add('sidebar-open');
-        
-        // Afficher un état de chargement
-        this.titleEl.textContent = 'Chargement...';
-        this.contentWrapper.innerHTML = '<div style="padding: 2rem; text-align: center;">Chargement des détails...</div>';
-
-        try {
-            const response = await fetch(`/document/details?id=${docId}`);
-            if (!response.ok) throw new Error('Document non trouvé.');
-            const data = await response.json();
-            
-            this.titleEl.textContent = data.main_document.original_filename;
-            this.renderSidebarContent(data.main_document, data.attachments);
-
-        } catch (error) {
-            this.titleEl.textContent = 'Erreur';
-            this.contentWrapper.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--danger-color);">${error.message}</div>`;
+    // Fermeture de la sidebar
+    sidebar.querySelector('#close-sidebar-btn')?.addEventListener('click', closeDetails);
+    
+    // Ajout dynamique du bouton de fermeture s'il n'existe pas
+    if (!sidebar.querySelector('#close-sidebar-btn')) {
+        const header = sidebar.querySelector('.sidebar-header');
+        if (header) {
+            const closeBtn = document.createElement('button');
+            closeBtn.id = 'close-sidebar-btn';
+            closeBtn.className = 'button-icon';
+            closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            closeBtn.addEventListener('click', closeDetails);
+            header.appendChild(closeBtn);
         }
-    },
+    }
+}
 
-    close() {
-        this.sidebarEl?.classList.remove('open');
-        this.mainContentEl?.classList.remove('sidebar-open');
-    },
+export async function openDetails(docId) {
+    if (!sidebar) return;
+    
+    // Ajoute un état de chargement
+    sidebar.innerHTML = '<div class="sidebar-loading" style="padding: 2rem; text-align: center;">Chargement...</div>';
+    sidebar.classList.add('open');
 
-    getFileIconClass(mimeType) {
-        if (!mimeType) return 'fa-file';
-        if (mimeType.includes('pdf')) return 'fa-file-pdf';
-        if (mimeType.includes('image')) return 'fa-file-image';
-        if (mimeType.includes('word')) return 'fa-file-word';
-        if (mimeType.includes('html')) return 'fa-file-code';
-        return 'fa-file-alt';
-    },
+    try {
+        const response = await fetch(`/api/document/details?id=${docId}`);
+        if (!response.ok) throw new Error('Document non trouvé.');
+        
+        const data = await response.json();
+        renderSidebarContent(data);
 
-    renderSidebarContent(doc, attachments) {
-        const docId = doc.id;
-        const iconClass = this.getFileIconClass(doc.mime_type);
+    } catch (error) {
+        console.error(error);
+        showToast(error.message, 'error');
+        closeDetails();
+    }
+}
 
-        let attachmentsHtml = '';
-        if (attachments && attachments.length > 0) {
-            attachmentsHtml = `
-                <div class="sidebar-section">
-                    <h3>Pièces jointes (${attachments.length})</h3>
-                    <ul class="attachments-list">
-                        ${attachments.map(att => `
-                            <li class="attachment-item">
-                                <i class="fas ${this.getFileIconClass(att.mime_type)} attachment-item-icon"></i>
-                                <div class="attachment-item-info">
-                                    <strong title="${att.original_filename}">${att.original_filename}</strong>
-                                    <span>${att.size_formatted}</span>
-                                </div>
-                                <div class="attachment-item-actions">
-                                    <a href="/document/download?id=${att.id}" class="button-icon" title="Télécharger" target="_blank">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                </div>
-                            </li>
-                        `).join('')}
-                    </ul>
-                </div>
-            `;
-        }
+export function closeDetails() {
+    if (sidebar) {
+        sidebar.classList.remove('open');
+    }
+}
 
-        this.contentWrapper.innerHTML = `
+function renderSidebarContent(data) {
+    const doc = data.document;
+    const attachments = data.attachments;
+
+    sidebar.innerHTML = `
+        <div class="sidebar-header">
+            <h2 title="${doc.filename}">${doc.filename}</h2>
+            <button id="close-sidebar-btn" class="button-icon"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="sidebar-body">
             <div class="sidebar-preview">
-                <i class="fas ${iconClass}"></i>
+                <i class="fas fa-file-alt" style="font-size: 4rem; color: #757575;"></i>
             </div>
-
             <div class="sidebar-actions">
-                <form action="/document/print" method="POST" class="action-form" style="width: 100%;">
-                    <input type="hidden" name="doc_id" value="${docId}">
-                    <button type="submit" class="button"><i class="fas fa-print"></i> Imprimer</button>
-                </form>
-                <a href="/document/download?id=${docId}" class="button button-secondary" target="_blank">
-                    <i class="fas fa-download"></i> Télécharger
-                </a>
-                <form action="/document/delete" method="POST" class="action-form" style="width: 100%;" onsubmit="return confirm('Confirmer la mise à la corbeille ?');">
-                    <input type="hidden" name="doc_ids[]" value="${docId}">
-                    <button type="submit" class="button button-delete"><i class="fas fa-trash"></i> Corbeille</button>
-                </form>
+                <button class="button" onclick="window.open('/document/download?id=${doc.id}')"><i class="fas fa-download"></i> Télécharger</button>
+                <button class="button button-secondary" onclick="document.dispatchEvent(new CustomEvent('openDocumentModal', { detail: { docId: ${doc.id} } }))"><i class="fas fa-eye"></i> Prévisualiser</button>
             </div>
-
             <div class="sidebar-section">
-                <h3>Informations</h3>
+                <h3>Détails</h3>
                 <ul class="sidebar-info-list">
-                    <li><strong>Taille:</strong> <span>${doc.size_formatted}</span></li>
-                    <li><strong>Type:</strong> <span>${doc.mime_type}</span></li>
-                    <li><strong>Ajouté le:</strong> <span>${new Date(doc.created_at).toLocaleString('fr-FR')}</span></li>
-                    <li><strong>Source:</strong> <span>${doc.source_account_id ? 'E-mail' : 'Manuel'}</span></li>
+                    <li>Type <span>${doc.mime_type || 'N/A'}</span></li>
+                    <li>Taille <span>${doc.size ? GED.App.formatBytes(doc.size) : 'N/A'}</span></li>
+                    <li>Créé le <span>${new Date(doc.created_at).toLocaleDateString('fr-FR')}</span></li>
+                    <li>Modifié le <span>${new Date(doc.updated_at).toLocaleDateString('fr-FR')}</span></li>
                 </ul>
             </div>
-
-            ${attachmentsHtml}
-        `;
-    }
-};
+            ${attachments && attachments.length > 0 ? `
+            <div class="sidebar-section">
+                <h3>Pièces Jointes (${attachments.length})</h3>
+                <ul class="attachments-list">
+                    ${attachments.map(att => `
+                        <li class="attachment-item">
+                            <div class="attachment-item-icon"><i class="fas fa-paperclip"></i></div>
+                            <div class="attachment-item-info">
+                                <strong>${att.filename}</strong>
+                                <span>${GED.App.formatBytes(att.size)}</span>
+                            </div>
+                            <a href="/document/download?id=${att.id}" class="button-icon" title="Télécharger"><i class="fas fa-download"></i></a>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+            ` : ''}
+        </div>
+    `;
+    
+    // Rattache l'événement de fermeture car on a remplacé le contenu
+    sidebar.querySelector('#close-sidebar-btn').addEventListener('click', closeDetails);
+}
