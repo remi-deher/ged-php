@@ -1,0 +1,156 @@
+/* public/css/navbar.css */
+
+/* Variables de couleur pour une personnalisation facile */
+:root {
+    --header-bg-color: #ffffff;
+    --header-border-color: #e9ecef;
+    --header-text-color: #333;
+    --header-icon-color: #6c757d;
+    --header-icon-hover-bg: #f1f1f1;
+    --search-bg-color: #f8f9fa;
+    --search-border-color: #dee2e6;
+    --search-focus-border-color: #007bff;
+    --avatar-bg-color: #007bff;
+    --avatar-text-color: #ffffff;
+}
+
+/* Structure principale de l'en-tête */
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 24px;
+    background-color: var(--header-bg-color);
+    border-bottom: 1px solid var(--header-border-color);
+    height: 60px; /* Hauteur fixe pour un meilleur alignement */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+/* --- Section Gauche --- */
+.header-left {
+    flex-shrink: 0;
+}
+
+.header-logo {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--header-text-color);
+}
+
+.logo-icon {
+    height: 32px;
+    width: 32px;
+    margin-right: 12px;
+    /* Si vous n'avez pas de logo, vous pouvez le cacher */
+    /* display: none; */
+}
+
+.logo-text {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+/* --- Section Centrale (Recherche) --- */
+.header-center {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    padding: 0 2rem;
+}
+
+.search-container {
+    max-width: 700px;
+    width: 100%;
+}
+
+.search-container form {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-container .search-button {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--header-icon-color);
+    cursor: default;
+    padding: 0;
+}
+
+.search-container #search-input {
+    width: 100%;
+    padding: 10px 15px 10px 45px; /* Espace pour l'icône */
+    font-size: 1rem;
+    border-radius: 20px; /* Style arrondi */
+    border: 1px solid var(--search-border-color);
+    background-color: var(--search-bg-color);
+    transition: all 0.2s ease-in-out;
+}
+
+.search-container #search-input:focus {
+    outline: none;
+    border-color: var(--search-focus-border-color);
+    background-color: var(--header-bg-color);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* --- Section Droite --- */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* Espace réduit entre les icônes */
+}
+
+/* Style des icônes d'action */
+.button-icon {
+    background: none;
+    border: none;
+    color: var(--header-icon-color);
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.button-icon:hover {
+    background-color: var(--header-icon-hover-bg);
+    color: var(--header-text-color);
+}
+
+/* Bouton de vue actif */
+.view-switcher .button-icon.active {
+    background-color: var(--search-focus-border-color);
+    color: white;
+}
+
+/* Profil Utilisateur */
+.user-profile .user-avatar-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: var(--avatar-bg-color);
+    color: var(--avatar-text-color);
+    font-weight: bold;
+    font-size: 1rem;
+    border: none;
+}
+.user-profile .user-avatar-button:hover {
+    opacity: 0.9;
+}

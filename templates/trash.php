@@ -28,6 +28,7 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/components.css">
     <link rel="stylesheet" href="/css/pages/home.css"> <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="/css/navbar.css">
 </head>
 <body>
     <?php require_once __DIR__ . '/parts/navbar.php'; ?>
