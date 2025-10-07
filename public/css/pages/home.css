@@ -4,7 +4,7 @@
 .app-layout {
     display: flex;
     height: 100vh; /* Prend 100% de la hauteur de la fenêtre */
-    padding-top: 60px; /* Laisse de la place pour l'en-tête fixe */
+    padding-top: 0px; /* Laisse de la place pour l'en-tête fixe */
 }
 
 /* --- Barre latérale (Gauche) --- */
@@ -30,9 +30,10 @@
 .main-content {
     flex-grow: 1;
     padding: 1.5rem;
+    padding-top: 5rem;
     overflow-y: auto; /* Permet le défilement du contenu principal uniquement */
 }
-.content-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.content-header { display: flex;}
 .breadcrumb h1 { font-size: 1.5rem; display: flex; align-items: center; gap: 8px; }
 .breadcrumb a { color: var(--text-color); }
 .breadcrumb a:hover { color: var(--primary-color); }
