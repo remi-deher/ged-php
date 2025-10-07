@@ -1,5 +1,10 @@
 <?php
 // templates/parts/footer.php
 ?>
-</body>
+        </div> <script>
+            // A global variable for the app namespace, if needed
+            const GED = {};
+        </script>
+
+    </body>
 </html>

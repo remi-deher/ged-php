@@ -18,29 +18,21 @@ class DocumentService
     }
 
     /**
-     * Récupère les dossiers et les documents pour un dossier parent donné.
-     * C'est la fonction principale appelée par l'API.
+     * Retrieves folders and documents for a given parent folder.
      */
     public function getDocumentsAndFolders(?int $folderId, array $filters = []): array
     {
-        // 1. Récupérer les sous-dossiers
         $folders = $this->folderRepository->findByParent($folderId);
-        // Ajoute un type pour que le JavaScript puisse les différencier
         foreach ($folders as &$folder) {
             $folder['type'] = 'folder';
         }
 
-        // 2. Récupérer les documents dans le dossier
         $documents = $this->documentRepository->findByFolder($folderId, $filters);
-        // Ajoute un type pour le JS
         foreach ($documents as &$doc) {
             $doc['type'] = 'document';
         }
 
-        // 3. Fusionner les deux listes
-        $allItems = array_merge($folders, $documents);
-
-        return $allItems;
+        return array_merge($folders, $documents);
     }
 
     public function renameDocument(int $id, string $newName): bool
@@ -59,24 +51,27 @@ class DocumentService
     public function downloadDocument(int $id): void
     {
         $document = $this->documentRepository->find($id);
-        if (!$document) {
+
+        if (!$document || !isset($document['file_path']) || !isset($document['filename'])) {
             http_response_code(404);
-            die('Document non trouvé.');
+            die('Document non valide ou introuvable.');
         }
 
         $filePath = __DIR__ . '/../../' . $document['file_path'];
-        if (!file_exists($filePath)) {
+
+        if (!file_exists($filePath) || is_dir($filePath)) {
             http_response_code(404);
-            die('Fichier non trouvé sur le serveur.');
+            die('Fichier non trouvé sur le serveur ou est un dossier.');
         }
 
         header('Content-Description: File Transfer');
-        header('Content-Type: ' . $document['mime_type']);
+        header('Content-Type: ' . ($document['mime_type'] ?? 'application/octet-stream'));
         header('Content-Disposition: attachment; filename="' . basename($document['filename']) . '"');
         header('Expires: 0');
         header('Cache-Control: must-revalidate');
         header('Pragma: public');
         header('Content-Length: ' . filesize($filePath));
+        flush();
         readfile($filePath);
         exit;
     }

@@ -1,14 +1,17 @@
 // public/js/settings/main.js
 
-GED.settings = GED.settings || {};
+import * as Printers from './printers.js';
+import * as Tenants from './tenants.js';
+import * as Accounts from './accounts.js';
+import * as Modals from './modals.js';
 
-GED.settings.init = function() {
-    GED.settings.printers.init();
-    GED.settings.tenants.init();
-    GED.settings.accounts.init();
-    GED.settings.modals.init();
-};
+// The main initialization function for the settings page.
+function init() {
+    Printers.init();
+    Tenants.init();
+    Accounts.init();
+    Modals.init();
+}
 
-document.addEventListener('DOMContentLoaded', () => {
-    GED.settings.init();
-});
+// Run the initialization function once the page's DOM is fully loaded.
+document.addEventListener('DOMContentLoaded', init);

@@ -20,9 +20,9 @@ GED.App = {
         ViewSwitcher.init(this.fetchAndDisplayDocuments.bind(this));
         Uploader.init(this.currentFolderId, this.fetchAndDisplayDocuments.bind(this));
         Sidebar.init();
-
+        
         Dnd.initializeDnd(this.currentFolderId, this.fetchAndDisplayDocuments.bind(this));
-
+        
         ContextMenu.init(this.fetchAndDisplayDocuments.bind(this));
         Selection.init();
         Filters.init(this.fetchAndDisplayDocuments.bind(this));
@@ -42,7 +42,7 @@ GED.App = {
                 addDropdown.classList.toggle('show');
             });
         }
-
+        
         window.addEventListener('click', (event) => {
             if (addDropdown && !addDropdown.contains(event.target)) {
                 addDropdown.classList.remove('show');
@@ -56,13 +56,15 @@ GED.App = {
             if (this.currentFolderId) {
                 params.set('folder_id', this.currentFolderId);
             }
-
+            
             const response = await fetch(`/api/documents?${params.toString()}`);
             if (!response.ok) {
-                throw new Error('Erreur lors de la récupération des documents.');
+                const errorData = await response.json().catch(() => null);
+                const errorMessage = errorData?.error?.message || 'Erreur lors de la récupération des documents.';
+                throw new Error(errorMessage);
             }
             const data = await response.json();
-
+            
             this.currentView = ViewSwitcher.getCurrentView();
             const container = document.getElementById('documents-container');
 
@@ -72,13 +74,13 @@ GED.App = {
             } else {
                 container.innerHTML = this.renderListView(data.documents);
             }
-
+            
             this.attachEventListeners();
             Selection.updateBulkActionsVisibility();
 
         } catch (error) {
             console.error(error);
-            showToast('Impossible de charger les documents.', 'error');
+            showToast(error.message, 'error');
         }
     },
 
@@ -86,7 +88,7 @@ GED.App = {
         if (!documents || documents.length === 0) {
             return '<div class="empty-state"><i class="fas fa-folder-open"></i><p>Ce dossier est vide.</p></div>';
         }
-
+    
         const tableHeader = `
             <table class="table documents-table">
                 <thead>
@@ -101,14 +103,18 @@ GED.App = {
                 </thead>
                 <tbody>
         `;
-
+    
         const tableBody = documents.map(doc => {
             const isFolder = doc.type === 'folder';
-            const icon = isFolder
-                ? '<i class="fas fa-folder folder-icon-color"></i>'
+            const icon = isFolder 
+                ? '<i class="fas fa-folder folder-icon-color"></i>' 
                 : this.getFileIcon(doc.filename);
             const size = isFolder ? '—' : (doc.size ? this.formatBytes(doc.size) : 'N/A');
             const date = new Date(doc.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            const downloadButton = !isFolder
+                ? `<button class="button-icon" data-action="download" data-id="${doc.id}" title="Télécharger"><i class="fas fa-download"></i></button>`
+                : '';
 
             return `
                 <tr class="${isFolder ? 'folder-row' : 'document-row'}" data-id="${doc.id}" data-type="${doc.type}" data-name="${doc.name || doc.filename}" draggable="${!isFolder}">
@@ -123,14 +129,14 @@ GED.App = {
                     <td class="col-date">${date}</td>
                     <td class="col-actions">
                         <div class="document-actions">
-                           <button class="button-icon" data-action="download" data-id="${doc.id}" title="Télécharger"><i class="fas fa-download"></i></button>
-                           <button class="button-icon" data-action="delete" data-id="${doc.id}" title="Supprimer"><i class="fas fa-trash"></i></button>
+                           ${downloadButton}
+                           <button class="button-icon" data-action="delete" data-id="${doc.id}" data-type="${doc.type}" title="Supprimer"><i class="fas fa-trash"></i></button>
                         </div>
                     </td>
                 </tr>
             `;
         }).join('');
-
+    
         const tableFooter = '</tbody></table>';
         return tableHeader + tableBody + tableFooter;
     },
@@ -142,10 +148,10 @@ GED.App = {
 
         const items = documents.map(doc => {
             const isFolder = doc.type === 'folder';
-            const icon = isFolder
+            const icon = isFolder 
                 ? '<i class="fas fa-folder folder-icon-color"></i>'
                 : this.getFileIcon(doc.filename);
-
+            
             return `
                 <div class="grid-item" data-id="${doc.id}" data-type="${doc.type}" data-name="${doc.name || doc.filename}" draggable="${!isFolder}">
                     <div class="grid-item-thumbnail">
@@ -155,7 +161,7 @@ GED.App = {
                 </div>
             `;
         }).join('');
-
+        
         return `<div class="grid-view-container">${items}</div>`;
     },
 
@@ -166,10 +172,9 @@ GED.App = {
             const target = e.target;
             const row = target.closest('.document-row, .grid-item');
             const folderLink = target.closest('.folder-link, .folder-row, .grid-item[data-type="folder"]');
-
+            
             if (folderLink && !target.closest('.button-icon, .row-checkbox')) {
                 e.preventDefault();
-                // --- THIS IS THE CORRECTED LINE ---
                 const folderId = folderLink.dataset.id;
                 window.location.href = `/?folder_id=${folderId}`;
                 return;
@@ -177,21 +182,25 @@ GED.App = {
 
             if (row && !target.closest('.button-icon, .row-checkbox, a')) {
                 const docId = row.dataset.id;
-                Sidebar.openDetails(docId);
+                const docType = row.dataset.type;
+                if (docType !== 'folder') {
+                    Sidebar.openDetails(docId);
+                }
             }
 
             const actionButton = target.closest('button[data-action]');
             if(actionButton) {
                 const action = actionButton.dataset.action;
                 const id = actionButton.dataset.id;
+                const type = actionButton.dataset.type; // Pass type for deletion
                 if (action === 'delete') {
-                    ContextMenu.deleteItem(id);
+                    ContextMenu.deleteItem(id, type);
                 } else if (action === 'download') {
                     ContextMenu.downloadItem(id);
                 }
             }
         });
-
+        
         container.addEventListener('contextmenu', (e) => {
             const item = e.target.closest('.document-row, .grid-item, .folder-row');
             if (item) {
@@ -224,7 +233,7 @@ GED.App = {
     },
 
     formatBytes(bytes, decimals = 2) {
-        if (bytes === 0) return '0 Bytes';
+        if (!bytes || bytes === 0) return '0 Bytes';
         const k = 1024;
         const dm = decimals < 0 ? 0 : decimals;
         const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
@@ -234,5 +243,7 @@ GED.App = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Ensure the global GED object exists before trying to attach the App to it.
+    window.GED = window.GED || {};
     GED.App.init();
 });

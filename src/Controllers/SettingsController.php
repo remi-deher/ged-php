@@ -4,27 +4,33 @@
 namespace App\Controllers;
 
 use App\Services\ConfigurationService;
+use App\Repositories\FolderRepository; // Ajout important
 
 class SettingsController
 {
     private $configService;
+    private $folderRepository; // Ajout important
 
     public function __construct()
     {
         $this->configService = new ConfigurationService();
+        $this->folderRepository = new FolderRepository(); // Ajout important
     }
 
-    /**
-     * --- START OF CORRECTION ---
-     * This 'index' method was missing. It is required by the router
-     * to display the main settings page.
-     */
     public function index()
     {
-        // This line loads the HTML template for the settings page.
+        // --- DÉBUT DE LA CORRECTION ---
+        // On charge toutes les données nécessaires pour la page des réglages
+        $tenantsData = $this->configService->getMailSettings();
+        $printers = $this->configService->getPrintSettings();
+        $appFolders = $this->folderRepository->findAll(); // Récupère tous les dossiers pour les menus déroulants
+
+        // On passe les variables au template
+        $tenants = $tenantsData['tenants'] ?? [];
+        // --- FIN DE LA CORRECTION ---
+
         require_once __DIR__ . '/../../templates/settings_tenant.php';
     }
-    // --- END OF CORRECTION ---
 
     public function getMailSettings()
     {
