@@ -17,57 +17,57 @@ class DocumentRepository
 
     public function find(int $id): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM documents WHERE id = :id AND deleted_at IS NULL");
+        $stmt = $this->db->prepare("SELECT * FROM documents WHERE id = :id");
         $stmt->execute([':id' => $id]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ?: null;
     }
 
     /**
-     * CORRECTION MAJEURE
-     * Trouve les documents dans un dossier en appliquant des filtres.
-     * Gère le cas où folderId est null (racine).
-     *
-     * @param int|null $folderId
-     * @param array $filters
-     * @return array
+     * Finds documents in a folder, applying filters.
      */
     public function findByFolder(?int $folderId, array $filters = []): array
     {
-        // Base de la requête SQL
-        $sql = "SELECT * FROM documents WHERE deleted_at IS NULL";
+        // Base of the SQL query
+        $sql = "SELECT * FROM documents";
         $params = [];
+        $conditions = [];
 
-        // Ajoute la condition sur le dossier parent
+        // Add condition for the parent folder
         if ($folderId === null) {
-            $sql .= " AND folder_id IS NULL";
+            $conditions[] = "folder_id IS NULL";
         } else {
-            $sql .= " AND folder_id = :folder_id";
+            $conditions[] = "folder_id = :folder_id";
             $params[':folder_id'] = $folderId;
         }
 
-        // --- Application des filtres ---
+        // --- Apply Filters ---
         if (!empty($filters['type'])) {
-            $sql .= " AND type = :type";
+            $conditions[] = "type = :type";
             $params[':type'] = $filters['type'];
         }
         if (!empty($filters['status'])) {
-            $sql .= " AND status = :status";
+            $conditions[] = "status = :status";
             $params[':status'] = $filters['status'];
         }
         if (!empty($filters['start_date'])) {
-            $sql .= " AND created_at >= :start_date";
+            $conditions[] = "created_at >= :start_date";
             $params[':start_date'] = $filters['start_date'];
         }
         if (!empty($filters['end_date'])) {
-            $sql .= " AND created_at <= :end_date";
+            $conditions[] = "created_at <= :end_date";
             $params[':end_date'] = $filters['end_date'];
         }
 
-        // Ajoute le tri
+        // Add conditions to the main query if they exist
+        if (count($conditions) > 0) {
+            $sql .= " WHERE " . implode(' AND ', $conditions);
+        }
+
+        // Add sorting
         $sql .= " ORDER BY created_at DESC";
 
-        // Exécution de la requête
+        // Execute the query
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -92,7 +92,7 @@ class DocumentRepository
     
     public function update(int $id, array $data): bool
     {
-        // Construit la requête dynamiquement pour ne mettre à jour que les champs fournis
+        // Dynamically build the query to update only the provided fields
         $fields = [];
         $params = [':id' => $id];
         foreach ($data as $key => $value) {

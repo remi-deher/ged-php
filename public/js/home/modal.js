@@ -92,7 +92,8 @@ async function openDocumentModal(docId) {
 async function handleCreateFolder(e) {
     e.preventDefault();
     const form = e.target;
-    const folderName = form.querySelector('#folder-name').value;
+    // THIS IS THE CORRECTED LINE
+    const folderName = form.querySelector('#new-folder-name').value;
     const parentId = new URLSearchParams(window.location.search).get('folder_id') || null;
 
     try {
@@ -105,7 +106,7 @@ async function handleCreateFolder(e) {
         if (!response.ok) throw new Error(result.message);
 
         showToast('Dossier créé avec succès.', 'success');
-        form.closest('.modal-overlay').style.display = 'none';
+        form.closest('.modal').style.display = 'none'; // Corrected to use .modal
         form.reset();
         if(refreshCallback) refreshCallback();
     } catch(error) {

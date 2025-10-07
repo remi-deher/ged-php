@@ -20,10 +20,9 @@ GED.App = {
         ViewSwitcher.init(this.fetchAndDisplayDocuments.bind(this));
         Uploader.init(this.currentFolderId, this.fetchAndDisplayDocuments.bind(this));
         Sidebar.init();
-        
-        // CORRECTION ICI : Remplacement de Dnd.init par Dnd.initializeDnd
+
         Dnd.initializeDnd(this.currentFolderId, this.fetchAndDisplayDocuments.bind(this));
-        
+
         ContextMenu.init(this.fetchAndDisplayDocuments.bind(this));
         Selection.init();
         Filters.init(this.fetchAndDisplayDocuments.bind(this));
@@ -35,7 +34,6 @@ GED.App = {
 
         this.fetchAndDisplayDocuments();
 
-        // Gestion du dropdown "Ajouter"
         const addBtn = document.getElementById('add-btn');
         const addDropdown = document.getElementById('add-dropdown');
         if (addBtn && addDropdown) {
@@ -44,8 +42,7 @@ GED.App = {
                 addDropdown.classList.toggle('show');
             });
         }
-        
-        // Fermer le dropdown si on clique ailleurs
+
         window.addEventListener('click', (event) => {
             if (addDropdown && !addDropdown.contains(event.target)) {
                 addDropdown.classList.remove('show');
@@ -59,13 +56,13 @@ GED.App = {
             if (this.currentFolderId) {
                 params.set('folder_id', this.currentFolderId);
             }
-            
+
             const response = await fetch(`/api/documents?${params.toString()}`);
             if (!response.ok) {
                 throw new Error('Erreur lors de la récupération des documents.');
             }
             const data = await response.json();
-            
+
             this.currentView = ViewSwitcher.getCurrentView();
             const container = document.getElementById('documents-container');
 
@@ -75,7 +72,7 @@ GED.App = {
             } else {
                 container.innerHTML = this.renderListView(data.documents);
             }
-            
+
             this.attachEventListeners();
             Selection.updateBulkActionsVisibility();
 
@@ -89,7 +86,7 @@ GED.App = {
         if (!documents || documents.length === 0) {
             return '<div class="empty-state"><i class="fas fa-folder-open"></i><p>Ce dossier est vide.</p></div>';
         }
-    
+
         const tableHeader = `
             <table class="table documents-table">
                 <thead>
@@ -104,15 +101,15 @@ GED.App = {
                 </thead>
                 <tbody>
         `;
-    
+
         const tableBody = documents.map(doc => {
             const isFolder = doc.type === 'folder';
-            const icon = isFolder 
-                ? '<i class="fas fa-folder folder-icon-color"></i>' 
+            const icon = isFolder
+                ? '<i class="fas fa-folder folder-icon-color"></i>'
                 : this.getFileIcon(doc.filename);
             const size = isFolder ? '—' : (doc.size ? this.formatBytes(doc.size) : 'N/A');
             const date = new Date(doc.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            
+
             return `
                 <tr class="${isFolder ? 'folder-row' : 'document-row'}" data-id="${doc.id}" data-type="${doc.type}" data-name="${doc.name || doc.filename}" draggable="${!isFolder}">
                     <td class="col-checkbox"><input type="checkbox" class="row-checkbox" data-id="${doc.id}"></td>
@@ -133,7 +130,7 @@ GED.App = {
                 </tr>
             `;
         }).join('');
-    
+
         const tableFooter = '</tbody></table>';
         return tableHeader + tableBody + tableFooter;
     },
@@ -145,10 +142,10 @@ GED.App = {
 
         const items = documents.map(doc => {
             const isFolder = doc.type === 'folder';
-            const icon = isFolder 
+            const icon = isFolder
                 ? '<i class="fas fa-folder folder-icon-color"></i>'
                 : this.getFileIcon(doc.filename);
-            
+
             return `
                 <div class="grid-item" data-id="${doc.id}" data-type="${doc.type}" data-name="${doc.name || doc.filename}" draggable="${!isFolder}">
                     <div class="grid-item-thumbnail">
@@ -158,7 +155,7 @@ GED.App = {
                 </div>
             `;
         }).join('');
-        
+
         return `<div class="grid-view-container">${items}</div>`;
     },
 
@@ -169,9 +166,10 @@ GED.App = {
             const target = e.target;
             const row = target.closest('.document-row, .grid-item');
             const folderLink = target.closest('.folder-link, .folder-row, .grid-item[data-type="folder"]');
-            
+
             if (folderLink && !target.closest('.button-icon, .row-checkbox')) {
                 e.preventDefault();
+                // --- THIS IS THE CORRECTED LINE ---
                 const folderId = folderLink.dataset.id;
                 window.location.href = `/?folder_id=${folderId}`;
                 return;
@@ -193,7 +191,7 @@ GED.App = {
                 }
             }
         });
-        
+
         container.addEventListener('contextmenu', (e) => {
             const item = e.target.closest('.document-row, .grid-item, .folder-row');
             if (item) {
@@ -204,6 +202,10 @@ GED.App = {
     },
 
     getFileIcon(filename) {
+        if (typeof filename !== 'string' || filename.indexOf('.') === -1) {
+            return '<i class="fas fa-file-alt" style="color: #757575;"></i>';
+        }
+
         const extension = filename.split('.').pop().toLowerCase();
         switch (extension) {
             case 'pdf': return '<i class="fas fa-file-pdf" style="color: #D32F2F;"></i>';

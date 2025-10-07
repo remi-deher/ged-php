@@ -90,7 +90,19 @@ class DocumentController
             echo json_encode(['success' => true, 'documents' => $documents]);
         } catch (\Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            // --- START OF CORRECTION ---
+            // Provide a more detailed error message for debugging
+            echo json_encode([
+                'success' => false, 
+                'message' => 'An internal server error occurred.',
+                'error' => [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString() // Be cautious with this in production
+                ]
+            ]);
+            // --- END OF CORRECTION ---
         }
     }
 
