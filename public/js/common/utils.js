@@ -1,4 +1,4 @@
-// public/js/utils.js
+// public/js/common/utils.js
 
 /**
  * Crée le conteneur pour les notifications (toasts) s'il n'existe pas.
@@ -59,4 +59,38 @@ export function showToast(message, type = 'success', duration = 4000) {
             }
         });
     }, duration);
+}
+
+export function formatBytes(bytes, decimals = 2) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+export function getFileExtension(filename) {
+    if (typeof filename !== 'string' || filename.indexOf('.') === -1) {
+        return null;
+    }
+    return filename.split('.').pop().toLowerCase();
+}
+
+export function getMimeTypeIcon(filename) {
+    const extension = getFileExtension(filename);
+    switch (extension) {
+        case 'pdf': return '<i class="fas fa-file-pdf" style="color: #D32F2F;"></i>';
+        case 'doc':
+        case 'docx': return '<i class="fas fa-file-word" style="color: #1976D2;"></i>';
+        case 'xls':
+        case 'xlsx': return '<i class="fas fa-file-excel" style="color: #388E3C;"></i>';
+        case 'png':
+        case 'jpg':
+        case 'jpeg':
+        case 'gif': return '<i class="fas fa-file-image" style="color: #FBC02D;"></i>';
+        case 'eml':
+        case 'msg': return '<i class="fas fa-envelope" style="color: #00796B;"></i>';
+        default: return '<i class="fas fa-file-alt" style="color: #757575;"></i>';
+    }
 }

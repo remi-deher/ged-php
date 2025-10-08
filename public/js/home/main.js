@@ -108,8 +108,8 @@ GED.App = {
             const isFolder = doc.type === 'folder';
             const icon = isFolder 
                 ? '<i class="fas fa-folder folder-icon-color"></i>' 
-                : this.getFileIcon(doc.filename);
-            const size = isFolder ? '—' : (doc.size ? this.formatBytes(doc.size) : 'N/A');
+                : getMimeTypeIcon(doc.filename);
+            const size = isFolder ? '—' : (doc.size ? formatBytes(doc.size) : 'N/A');
             const date = new Date(doc.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
             
             const downloadButton = !isFolder
@@ -150,7 +150,7 @@ GED.App = {
             const isFolder = doc.type === 'folder';
             const icon = isFolder 
                 ? '<i class="fas fa-folder folder-icon-color"></i>'
-                : this.getFileIcon(doc.filename);
+                : getMimeTypeIcon(doc.filename);
             
             return `
                 <div class="grid-item" data-id="${doc.id}" data-type="${doc.type}" data-name="${doc.name || doc.filename}" draggable="${!isFolder}">
@@ -208,37 +208,6 @@ GED.App = {
                 ContextMenu.show(e, item.dataset.id, item.dataset.type, item.dataset.name);
             }
         });
-    },
-
-    getFileIcon(filename) {
-        if (typeof filename !== 'string' || filename.indexOf('.') === -1) {
-            return '<i class="fas fa-file-alt" style="color: #757575;"></i>';
-        }
-
-        const extension = filename.split('.').pop().toLowerCase();
-        switch (extension) {
-            case 'pdf': return '<i class="fas fa-file-pdf" style="color: #D32F2F;"></i>';
-            case 'doc':
-            case 'docx': return '<i class="fas fa-file-word" style="color: #1976D2;"></i>';
-            case 'xls':
-            case 'xlsx': return '<i class="fas fa-file-excel" style="color: #388E3C;"></i>';
-            case 'png':
-            case 'jpg':
-            case 'jpeg':
-            case 'gif': return '<i class="fas fa-file-image" style="color: #FBC02D;"></i>';
-            case 'eml':
-            case 'msg': return '<i class="fas fa-envelope" style="color: #00796B;"></i>';
-            default: return '<i class="fas fa-file-alt" style="color: #757575;"></i>';
-        }
-    },
-
-    formatBytes(bytes, decimals = 2) {
-        if (!bytes || bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const dm = decimals < 0 ? 0 : decimals;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
     }
 };
 
