@@ -29,13 +29,14 @@ class FolderService
     }
 
     /**
-     * --- NOUVELLE MÉTHODE AJOUTÉE ---
-     * Récupère la liste de tous les dossiers à plat.
-     * C'est la méthode qui manquait et causait l'erreur fatale.
+     * --- CORRECTION ---
+     * Récupère la liste de tous les dossiers.
+     * La méthode est renommée de 'getAllFoldersFlat' à 'getAllFolders'
+     * pour correspondre à l'appel dans la sidebar.
      *
      * @return array
      */
-    public function getAllFoldersFlat(): array
+    public function getAllFolders(): array
     {
         return $this->folderRepository->findAll();
     }
@@ -101,5 +102,14 @@ class FolderService
             throw new \Exception("Le nouveau nom ne peut pas être vide.");
         }
         return $this->folderRepository->update($id, ['name' => $newName]);
+    }
+
+    public function moveFolder(int $folderId, ?int $targetFolderId): bool
+    {
+        // On s'assure de ne pas déplacer un dossier dans lui-même
+        if ($folderId === $targetFolderId) {
+            throw new \Exception("Impossible de déplacer un dossier dans lui-même.");
+        }
+        return $this->folderRepository->update($folderId, ['parent_id' => $targetFolderId]);
     }
 }
