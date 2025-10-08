@@ -1,4 +1,4 @@
-<?php
+$<?php
 // templates/home.php
 
 /** @var \App\Services\FolderService $folderService */
@@ -101,6 +101,7 @@ include __DIR__ . '/parts/modal-rename.php';
 <ul class="context-menu" id="context-menu"></ul>
 
 <script src="/js/home/main.js" type="module"></script>
+<script src="/js/common/utils.js"></script>
 
 <?php 
 // CORRIGÉ : Utilisation de __DIR__ pour le footer.

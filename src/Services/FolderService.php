@@ -9,26 +9,35 @@ class FolderService
 {
     private FolderRepository $folderRepository;
 
-    public function __construct()
+    /**
+     * Constructeur modifié pour l'injection de dépendances.
+     */
+    public function __construct(FolderRepository $folderRepository = null)
     {
-        $this->folderRepository = new FolderRepository();
+        $this->folderRepository = $folderRepository ?: new FolderRepository();
     }
 
     /**
-     * NOUVELLE MÉTHODE
      * Récupère un dossier par son ID.
-     * Si l'ID est null, retourne les informations pour la racine.
-     *
-     * @param int|null $folderId
-     * @return array|null
      */
     public function getFolderById(?int $folderId): ?array
     {
         if ($folderId === null) {
-            // C'est la racine, on retourne une structure par défaut
             return ['id' => null, 'name' => 'Mes documents', 'parent_id' => null];
         }
         return $this->folderRepository->find($folderId);
+    }
+
+    /**
+     * --- NOUVELLE MÉTHODE AJOUTÉE ---
+     * Récupère la liste de tous les dossiers à plat.
+     * C'est la méthode qui manquait et causait l'erreur fatale.
+     *
+     * @return array
+     */
+    public function getAllFoldersFlat(): array
+    {
+        return $this->folderRepository->findAll();
     }
 
     public function getFolderTree(): array
@@ -43,7 +52,7 @@ class FolderService
         foreach ($elements as $key => $element) {
             if ($element['parent_id'] == $parentId) {
                 $child = $element;
-                unset($elements[$key]); // Optimisation pour réduire les recherches futures
+                unset($elements[$key]);
                 $children = $this->buildFolderTree($elements, $child['id']);
                 if ($children) {
                     $child['children'] = $children;
@@ -56,10 +65,6 @@ class FolderService
 
     /**
      * Récupère le chemin complet (parents) d'un dossier.
-     * Renommé de getBreadcrumbs pour plus de clarté.
-     *
-     * @param int|null $folderId
-     * @return array
      */
     public function getFolderPath(?int $folderId): array
     {
@@ -74,7 +79,7 @@ class FolderService
                 array_unshift($path, $folder);
                 $currentId = $folder['parent_id'];
             } else {
-                $currentId = null; // Stoppe la boucle si un parent n'est pas trouvé
+                $currentId = null;
             }
         }
         return $path;

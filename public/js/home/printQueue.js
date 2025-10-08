@@ -1,6 +1,5 @@
 // public/js/home/printQueue.js
-import { showToast } from '../utils.js';
-
+import { showToast } from '../common/utils.js';
 let printQueueModal;
 
 export function initPrintQueue() {

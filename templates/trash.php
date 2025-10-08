@@ -107,7 +107,6 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
             </div>
         </main>
     </div>
-
-    <script src="/js/trash/main.js" type="module"></script>
+    <script src="/js/trash/trash.js"></script>
 </body>
 </html>

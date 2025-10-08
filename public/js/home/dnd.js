@@ -1,6 +1,6 @@
 // public/js/home/dnd.js
 
-import { showToast } from '../utils.js';
+import { showToast } from '../common/utils.js';
 
 let currentFolderId;
 let refreshCallback;

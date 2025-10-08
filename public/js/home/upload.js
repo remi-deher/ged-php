@@ -1,6 +1,6 @@
 // public/js/home/upload.js
 
-import { showToast } from '../utils.js';
+import { showToast } from '../common/utils.js';
 
 let fileInput;
 let refreshCallback;

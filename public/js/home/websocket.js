@@ -1,6 +1,6 @@
 // public/js/home/websocket.js
 
-import { showToast } from '../utils.js';
+import { showToast } from '../common/utils.js';
 
 // On exporte directement la fonction pour qu'elle soit importable
 export function connectWebSocket() {

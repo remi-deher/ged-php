@@ -8,7 +8,7 @@ import * as Filters from './filters.js';
 import { setupDocumentModal, setupFolderModals, setupRenameModal } from './modal.js';
 import { initPrintQueue } from './printQueue.js';
 import { connectWebSocket } from './websocket.js';
-import { showToast } from '../utils.js';
+import { showToast, formatBytes, getFileExtension, getMimeTypeIcon } from '../common/utils.js';
 
 GED.App = {
     currentFolderId: null,

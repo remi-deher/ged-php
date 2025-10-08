@@ -1,105 +1,80 @@
 // public/js/home/contextMenu.js
 
-import { showToast } from '../utils.js';
+import { showToast } from '../common/utils.js';
 
-let contextMenu;
-let refreshCallback;
+let contextMenu = null;
 
-export function init(refreshDocumentsCallback) {
-    refreshCallback = refreshDocumentsCallback;
+export function initializeContextMenu() {
     contextMenu = document.getElementById('context-menu');
     if (!contextMenu) return;
 
-    // Cache le menu si on clique n'importe où sur la page
     document.addEventListener('click', () => {
         if (contextMenu.style.display === 'block') {
             contextMenu.style.display = 'none';
         }
     });
-
-    // Gère le clic sur une action du menu
-    contextMenu.addEventListener('click', (e) => {
-        const action = e.target.closest('li')?.dataset.action;
-        if (action) {
-            const id = contextMenu.dataset.id;
-            const type = contextMenu.dataset.type;
-            const name = contextMenu.dataset.name;
-
-            switch (action) {
-                case 'open':
-                    if (type === 'folder') {
-                        window.location.href = `/?folder_id=${id}`;
-                    } else {
-                        GED.App.attachItemEventListeners(); // Simule un clic pour ouvrir les détails
-                    }
-                    break;
-                case 'rename':
-                    document.dispatchEvent(new CustomEvent('openRenameModal', { detail: { id, type, name } }));
-                    break;
-                case 'download':
-                    downloadItem(id);
-                    break;
-                case 'delete':
-                    deleteItem(id, type);
-                    break;
-            }
-        }
-    });
 }
 
-export function show(event, id, type, name) {
-    if (!contextMenu) return;
+export function showContextMenu(event, element) {
+    event.preventDefault();
 
-    contextMenu.dataset.id = id;
-    contextMenu.dataset.type = type;
-    contextMenu.dataset.name = name;
-
-    const isFolder = type === 'folder';
-
-    contextMenu.innerHTML = `
-        <li data-action="open"><i class="fas fa-eye"></i> Ouvrir</li>
-        <li data-action="rename"><i class="fas fa-pencil-alt"></i> Renommer</li>
-        ${!isFolder ? `<li data-action="download"><i class="fas fa-download"></i> Télécharger</li>` : ''}
-        <li class="separator"></li>
-        <li data-action="delete"><i class="fas fa-trash"></i> Supprimer</li>
-    `;
+    const isFolder = element.dataset.type === 'folder';
+    
+    // Afficher/masquer les options selon le type
+    document.getElementById('ctx-open').style.display = isFolder ? 'block' : 'none';
+    document.getElementById('ctx-preview').style.display = isFolder ? 'none' : 'block';
+    document.getElementById('ctx-download').style.display = isFolder ? 'none' : 'block';
 
     contextMenu.style.display = 'block';
     contextMenu.style.left = `${event.pageX}px`;
     contextMenu.style.top = `${event.pageY}px`;
-}
 
-export function downloadItem(docId) {
-    window.location.href = `/document/download?id=${docId}`;
-}
-
-export async function deleteItem(id, type) {
-    const itemType = type === 'folder' ? 'dossier' : 'document';
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer ce ${itemType} ?`)) {
-        return;
+    // Attacher les actions
+    document.getElementById('ctx-rename').onclick = () => renameItem(element.dataset.id, element.dataset.type);
+    document.getElementById('ctx-delete').onclick = () => deleteItem(element.dataset.id, element.dataset.type);
+    
+    if (isFolder) {
+        document.getElementById('ctx-open').onclick = () => {
+            window.location.href = `/?folder_id=${element.dataset.id}`;
+        };
+    } else {
+        document.getElementById('ctx-preview').onclick = () => {
+             // Simule un clic gauche pour ouvrir le modal de prévisualisation
+            element.click();
+        };
+        document.getElementById('ctx-download').onclick = () => {
+            window.location.href = `/download?id=${element.dataset.id}`;
+        };
     }
+}
 
-    try {
-        const response = await fetch('/api/item/delete', {
+function renameItem(id, type) {
+    const renameModal = document.getElementById('rename-modal');
+    renameModal.style.display = 'block';
+    document.getElementById('rename-id-input').value = id;
+    document.getElementById('rename-type-input').value = type;
+    const currentName = document.querySelector(`[data-id='${id}'] .item-name`).textContent;
+    document.getElementById('new-name-input').value = currentName;
+    document.getElementById('new-name-input').focus();
+    document.getElementById('new-name-input').select();
+}
+
+function deleteItem(id, type) {
+    const itemName = document.querySelector(`[data-id='${id}'] .item-name`).textContent;
+    if (confirm(`Êtes-vous sûr de vouloir supprimer "${itemName}" ?`)) {
+        fetch('/api/delete-item', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({ id, type })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, type: type })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Élément déplacé à la corbeille.');
+                document.querySelector(`[data-id='${id}']`).remove();
+            } else {
+                showToast(data.message, 'error');
+            }
         });
-
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-            throw new Error(result.message || 'Erreur du serveur.');
-        }
-
-        showToast(`${itemType.charAt(0).toUpperCase() + itemType.slice(1)} supprimé.`, 'success');
-        if (refreshCallback) {
-            refreshCallback();
-        }
-
-    } catch (error) {
-        showToast(`Erreur : ${error.message}`, 'error');
     }
 }
