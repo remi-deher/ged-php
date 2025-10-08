@@ -27,8 +27,10 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
     
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/components.css">
-    <link rel="stylesheet" href="/css/pages/home.css"> <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/css/navbar.css">
+    <link rel="stylesheet" href="/css/pages/home.css">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <?php require_once __DIR__ . '/parts/navbar.php'; ?>
@@ -45,7 +47,7 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
             <div class="sidebar-separator"></div>
             <div class="folder-tree">
                 <?php if (isset($folderTree)): ?>
-                    <?php renderFolderTree($folderTree, $currentFolderId); ?>
+                    <?php renderFolderTree($folderTree, $currentFolderId ?? null); ?>
                 <?php endif; ?>
             </div>
         </aside>
@@ -76,7 +78,7 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
                                                 <input type="checkbox" name="doc_ids[]" value="<?= $doc['id'] ?>" class="trash-checkbox">
                                             </td>
                                             <td>
-                                                <span style="color: var(--danger-color); margin-right: 8px;">📄</span>
+                                                <span style="margin-right: 8px;">📄</span>
                                                 <?= htmlspecialchars($doc['original_filename']) ?>
                                             </td>
                                             <td>
@@ -106,6 +108,6 @@ function renderFolderTree(array $folderTree, ?int $currentFolderId) {
         </main>
     </div>
 
-    <script src="/js/trash.js"></script>
+    <script src="/js/trash/main.js" type="module"></script>
 </body>
 </html>

@@ -4,31 +4,33 @@
 namespace App\Controllers;
 
 use App\Services\ConfigurationService;
-use App\Repositories\FolderRepository; // Ajout important
+use App\Services\FolderService; // AJOUTÉ
 
 class SettingsController
 {
     private $configService;
-    private $folderRepository; // Ajout important
+    private $folderService; // AJOUTÉ
 
     public function __construct()
     {
         $this->configService = new ConfigurationService();
-        $this->folderRepository = new FolderRepository(); // Ajout important
+        $this->folderService = new FolderService(); // AJOUTÉ
     }
 
+    /**
+     * --- CORRIGÉ ---
+     * La méthode 'index' charge désormais les données nécessaires pour le template,
+     * ce qui empêche les erreurs fatales lors du rendu de la page.
+     */
     public function index()
     {
-        // --- DÉBUT DE LA CORRECTION ---
-        // On charge toutes les données nécessaires pour la page des réglages
-        $tenantsData = $this->configService->getMailSettings();
-        $printers = $this->configService->getPrintSettings();
-        $appFolders = $this->folderRepository->findAll(); // Récupère tous les dossiers pour les menus déroulants
+        // Charger toutes les données nécessaires pour la vue
+        $tenants = $this->configService->loadMailSettings();
+        $printers = $this->configService->loadPrintSettings();
+        $folderTree = $this->folderService->getFolderTree();
+        $appFolders = $this->folderService->getAllFoldersFlat();
 
-        // On passe les variables au template
-        $tenants = $tenantsData['tenants'] ?? [];
-        // --- FIN DE LA CORRECTION ---
-
+        // Rendre le template en incluant les variables nécessaires
         require_once __DIR__ . '/../../templates/settings_tenant.php';
     }
 
@@ -36,7 +38,8 @@ class SettingsController
     {
         header('Content-Type: application/json');
         try {
-            $settings = $this->configService->getMailSettings();
+            // CORRIGÉ : Utilisation de la méthode existante loadMailSettings()
+            $settings = $this->configService->loadMailSettings();
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (\Exception $e) {
             http_response_code(500);
@@ -60,7 +63,8 @@ class SettingsController
     {
         header('Content-Type: application/json');
         try {
-            $settings = $this->configService->getPrintSettings();
+            // CORRIGÉ : Utilisation de la méthode existante loadPrintSettings()
+            $settings = $this->configService->loadPrintSettings();
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (\Exception $e) {
             http_response_code(500);

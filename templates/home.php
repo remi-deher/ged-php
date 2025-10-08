@@ -7,14 +7,14 @@
 /** @var array|null $parentFolder */
 
 $pageTitle = $currentFolder ? htmlspecialchars($currentFolder['name']) : 'Tableau de bord';
-// MODIFIÉ : Utilisation de __DIR__ pour construire un chemin absolu
+// CORRIGÉ : Utilisation de __DIR__ pour construire un chemin absolu et fiable.
 include __DIR__ . '/parts/header.php';
 ?>
 
 <div class="app-layout">
     <aside class="app-sidebar-left">
         <?php 
-        // MODIFIÉ : Utilisation de __DIR__ pour construire un chemin absolu
+        // CORRIGÉ : Utilisation de __DIR__ pour construire un chemin absolu.
         include __DIR__ . '/parts/sidebar-left.php'; 
         ?>
     </aside>
@@ -85,17 +85,9 @@ include __DIR__ . '/parts/header.php';
 </div>
 
 <?php 
-// MODIFIÉ : Utilisation de __DIR__ pour construire un chemin absolu
+// CORRIGÉ : Utilisation de __DIR__ pour les inclusions.
 include __DIR__ . '/parts/modal-document.php'; 
-?>
-
-<?php 
-// MODIFIÉ : Utilisation de __DIR__ pour construire un chemin absolu
 include __DIR__ . '/parts/modal-create-folder.php'; 
-?>
-
-<?php 
-// MODIFIÉ : Utilisation de __DIR__ pour construire un chemin absolu
 include __DIR__ . '/parts/modal-rename.php'; 
 ?>
 
@@ -111,6 +103,6 @@ include __DIR__ . '/parts/modal-rename.php';
 <script src="/js/home/main.js" type="module"></script>
 
 <?php 
-// MODIFIÉ : Utilisation de __DIR__ pour construire un chemin absolu
+// CORRIGÉ : Utilisation de __DIR__ pour le footer.
 include __DIR__ . '/parts/footer.php'; 
 ?>
