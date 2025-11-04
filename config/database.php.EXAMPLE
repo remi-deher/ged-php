@@ -1,0 +1,12 @@
+<?php
+// config/database.php
+
+// Fichier de configuration pour la base de données
+
+return [
+    'host' => '127.0.0.1',
+    'db'   => 'ged', // Le nom de votre base de données
+    'user' => 'votre_utilisateur_mysql', // Votre utilisateur
+    'pass' => 'votre_mot_de_passe_mysql', // Votre mot de passe
+    'charset' => 'utf8mb4'
+];

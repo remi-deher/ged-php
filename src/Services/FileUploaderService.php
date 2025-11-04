@@ -61,6 +61,7 @@ class FileUploaderService
             throw new \RuntimeException("Impossible de déplacer le fichier uploadé vers le stockage. Vérifiez les permissions du dossier 'storage'.");
         }
 
+        // Le contrôleur utilisera ces informations pour appeler DocumentRepository->create()
         return [
             'original_filename' => $originalFilename,
             'stored_filename'   => $storedFilename,

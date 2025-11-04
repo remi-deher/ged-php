@@ -27,6 +27,8 @@ class DocumentService
             $folder['type'] = 'folder';
         }
 
+        // Le filtre 'type' a été retiré du Repository,
+        // mais l'ajout de la clé 'type' ici est correct pour le front-end.
         $documents = $this->documentRepository->findByFolder($folderId, $filters);
         foreach ($documents as &$doc) {
             $doc['type'] = 'document';
@@ -40,11 +42,13 @@ class DocumentService
         if (empty(trim($newName))) {
             throw new \Exception("Le nouveau nom ne peut pas être vide.");
         }
-        return $this->documentRepository->update($id, ['filename' => $newName]);
+        // ** CORRECTION : 'filename' -> 'original_filename' pour correspondre à ged.sql **
+        return $this->documentRepository->update($id, ['original_filename' => $newName]);
     }
 
     public function moveDocument(int $documentId, ?int $targetFolderId): bool
     {
+        // C'était déjà correct.
         return $this->documentRepository->update($documentId, ['folder_id' => $targetFolderId]);
     }
 
@@ -52,12 +56,14 @@ class DocumentService
     {
         $document = $this->documentRepository->find($id);
 
-        if (!$document || !isset($document['file_path']) || !isset($document['filename'])) {
+        // ** CORRECTION : Vérification des clés 'storage_path', 'stored_filename' et 'original_filename' **
+        if (!$document || !isset($document['storage_path']) || !isset($document['stored_filename']) || !isset($document['original_filename'])) {
             http_response_code(404);
             die('Document non valide ou introuvable.');
         }
 
-        $filePath = __DIR__ . '/../../' . $document['file_path'];
+        // ** CORRECTION : Construction du chemin de fichier basée sur les colonnes de ged.sql **
+        $filePath = __DIR__ . '/../../' . $document['storage_path'] . $document['stored_filename'];
 
         if (!file_exists($filePath) || is_dir($filePath)) {
             http_response_code(404);
@@ -66,7 +72,8 @@ class DocumentService
 
         header('Content-Description: File Transfer');
         header('Content-Type: ' . ($document['mime_type'] ?? 'application/octet-stream'));
-        header('Content-Disposition: attachment; filename="' . basename($document['filename']) . '"');
+        // ** CORRECTION : Utilisation de 'original_filename' pour le nom de téléchargement **
+        header('Content-Disposition: attachment; filename="' . basename($document['original_filename']) . '"');
         header('Expires: 0');
         header('Cache-Control: must-revalidate');
         header('Pragma: public');

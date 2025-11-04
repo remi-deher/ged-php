@@ -7,3 +7,4 @@ config/mail.php
 bin/check-emails.php
 config/mail_settings.json
 /node_modules/
+/config/database.php
